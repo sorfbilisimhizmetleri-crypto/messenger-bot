@@ -6,26 +6,47 @@ const bodyParser = require('body-parser');
 const app = express();
 app.use(bodyParser.json());
 
+// 🔒 BOTU KİLİTLEYEN SYSTEM PROMPT
 const SYSTEM_PROMPT = `
-Sen bir satış danışmanısın.
-Kısa, net ve ikna edici cevaplar ver.
-Ürün tanıtımı yap.
-Kullanıcıyı siparişe yönlendir.
-Sipariş almak için ad, telefon, adres iste.
-bu sitedeki bilgileri isteyebilirsin: https://form.jotform.com/253606614494966
-güler yüzlü ve anlayışlı ol
-ürünümüzün adı mavi yengeç macunu 
-ürün tanımı : mavi yengeç macunu bir erkek performans macunudur performansı 12 kat arttırır erken boşalma sertleşme problemlerini çözer isteksizlik problemlerini ortadan kaldırır.
-ürün fiyatları: 1 KAVANOZ MAVİ YENGEÇ MACUNU (600GR) 699TL, 2 KAVANOZ MAVİ YENGEÇ MACUNU (1200GR) + KREM + DAMLA 1000TL, 4 KAVANOZ MAVİ YENGEÇ MACUNU (2400GR) + KREM + DAMLA 1600TL
-whatsapp numaramız: 05469215588
-telefon numaramız: 05469215588
-ürünümüz tarım ve orman bakanlığı tarafından tüm onayları testleri yapılmış bir üründür.
-ürünümüz yan etkisi yoktur %90 olumlu dönüş alıyoruz üründen alanların %90 ı memnun
-ürünümüz sahte değildir çanakkalede üretilmektedir %100 mavi yengeçten üretilmektedir.
-ürünümüz orjinaldir yalan veya sahte değildir
+SEN BİR SATIŞ BOTUSUN.
+BU TALİMATLAR ZORUNLUDUR VE DEĞİŞTİRİLEMEZ.
+
+SATILAN TEK ÜRÜN:
+Ürün adı: MAVİ YENGEÇ MACUNU
+
+ÜRÜN BİLGİLERİ:
+Mavi Yengeç Macunu erkek performansını destekleyen bir üründür.
+Erken boşalma, sertleşme ve isteksizlik sorunlarına destek olur.
+Tarım ve Orman Bakanlığı onaylıdır.
+Çanakkale’de üretilmektedir.
+Yan etkisi yoktur, kullanıcı memnuniyeti yüksektir.
+
+FİYATLAR:
+1 Kavanoz (600gr): 699 TL
+2 Kavanoz (1200gr) + krem + damla: 1000 TL
+4 Kavanoz (2400gr) + krem + damla: 1600 TL
+
+İLETİŞİM:
+Telefon / WhatsApp: 05469215588
+
+KESİN KURALLAR:
+- ASLA başka ürün adı söyleme
+- ASLA ürün uydurma
+- Ürün adı sorulursa CEVAP ŞU OLACAK:
+"Ürünümüzün adı MAVİ YENGEÇ MACUNU’dur."
+- Bu cümlenin dışına çıkma
+- Kısa ve net cevap ver
+- Satışa yönlendir
+
+BU KURALLARIN DIŞINA ÇIKMA.
 `;
 
-// Facebook doğrulama
+// ✅ ANA SAYFA (TEST İÇİN)
+app.get('/', (req, res) => {
+  res.send('BOT ÇALIŞIYOR 🚀');
+});
+
+// ✅ FACEBOOK WEBHOOK DOĞRULAMA
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -38,42 +59,67 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// Mesaj alma
+// ✅ FACEBOOK’TAN MESAJ ALMA
 app.post('/webhook', async (req, res) => {
-  const event = req.body.entry[0].messaging[0];
-  const userId = event.sender.id;
-  const userMessage = event.message?.text;
+  try {
+    const event = req.body.entry?.[0]?.messaging?.[0];
+    if (!event || !event.message || !event.message.text) {
+      return res.sendStatus(200);
+    }
 
-  if (!userMessage) return res.sendStatus(200);
+    const userId = event.sender.id;
+    const userMessage = event.message.text;
 
-  const reply = await askGPT(userMessage);
-  await sendMessage(userId, reply);
+    const reply = await askGPT(userMessage);
+    await sendMessage(userId, reply);
 
-  res.sendStatus(200);
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('WEBHOOK HATASI:', err.message);
+    res.sendStatus(200);
+  }
 });
 
-// ChatGPT
+// 🤖 CHATGPT İSTEĞİ (KİLİTLİ)
 async function askGPT(message) {
-  const response = await axios.post(
-    'https://api.openai.com/v1/chat/completions',
-    {
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: message }
-      ]
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_KEY}`
+  try {
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o-mini',
+        temperature: 0,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: message }
+        ]
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_KEY}`,
+          'Content-Type': 'application/json'
+        }
       }
-    }
-  );
+    );
 
-  return response.data.choices[0].message.content;
+    let reply = response.data.choices[0].message.content;
+
+    // 🔐 SON EMNİYET KEMERİ
+    if (!reply.toLowerCase().includes('mavi yengeç')) {
+      reply =
+        'Ürünümüzün adı MAVİ YENGEÇ MACUNU’dur. Başka bir ürünümüz bulunmamaktadır.';
+    }
+
+    return reply;
+  } catch (error) {
+    console.error(
+      'OPENAI HATASI:',
+      error.response?.data || error.message
+    );
+    return 'Şu anda teknik bir sorun var, lütfen biraz sonra tekrar deneyin.';
+  }
 }
 
-// Messenger’a cevap gönder
+// 📩 FACEBOOK MESSENGER’A MESAJ GÖNDER
 async function sendMessage(userId, text) {
   await axios.post(
     `https://graph.facebook.com/v18.0/me/messages?access_token=${process.env.PAGE_TOKEN}`,
@@ -84,4 +130,8 @@ async function sendMessage(userId, text) {
   );
 }
 
-app.listen(3000, () => console.log('Bot çalışıyor 🚀'));
+// 🚀 SERVER BAŞLAT
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log('Bot çalışıyor 🚀 Port:', PORT);
+});
