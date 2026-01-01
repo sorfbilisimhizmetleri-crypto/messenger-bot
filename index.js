@@ -103,11 +103,6 @@ async function askGPT(message) {
 
     let reply = response.data.choices[0].message.content;
 
-    // 🔐 SON EMNİYET KEMERİ
-    if (!reply.toLowerCase().includes('mavi yengeç')) {
-      reply =
-        'Ürünümüzün adı MAVİ YENGEÇ MACUNU’dur. Başka bir ürünümüz bulunmamaktadır.';
-    }
 
     return reply;
   } catch (error) {
