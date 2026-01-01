@@ -185,6 +185,7 @@ Lütfen 1 / 2 / 3 yazınız`
   if (user.step === 'adres') {
     user.adres = message;
     user.step = 'bitti';
+    await sendToSheet(user);
     console.log('YENİ SİPARİŞ:', user);
     return sendMessage(
       userId,
@@ -250,6 +251,25 @@ async function sendMessage(userId, text) {
       message: { text }
     }
   );
+}
+
+// =======================
+// 📊 GOOGLE E-TABLOLAR
+// =======================
+async function sendToSheet(order) {
+  try {
+    await axios.post(
+      'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
+      {
+        name: order.isim,
+        phone: order.telefon,
+        address: order.adres,
+        package: order.paket
+      }
+    );
+  } catch (err) {
+    console.error('Sheets gönderme hatası:', err.message);
+  }
 }
 
 // =======================
