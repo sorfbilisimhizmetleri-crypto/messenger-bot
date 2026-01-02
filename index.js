@@ -137,11 +137,6 @@ async function sendToSheet(order) {
 }
 
 // =======================
-app.listen(process.env.PORT || 3000, () => {
-  console.log('Bot çalışıyor 🚀');
-});
-
-// =======================
 // MESAJ ALMA
 // =======================
 app.post('/webhook', async (req, res) => {
