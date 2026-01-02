@@ -128,7 +128,7 @@ async function saveOrderToSheet(order) {
     params.append('tarih', order.tarih);
 
     await axios.post(
-      process.env.SHEET_URL,
+      'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
       params.toString(),
       {
         headers: {
@@ -136,10 +136,13 @@ async function saveOrderToSheet(order) {
         }
       }
     );
+
+    console.log('✅ Sipariş Google Sheet’e gönderildi');
   } catch (e) {
-    console.log('Sheet kayıt hatası:', e.message);
+    console.error('❌ Sheet gönderme hatası:', e.message);
   }
 }
+
 
 
 // =======================
