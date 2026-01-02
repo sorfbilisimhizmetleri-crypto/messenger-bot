@@ -23,7 +23,6 @@ Cümlelerin sonunda veya uygun yerlerde
 1–2 adet sade emoji kullan.
 profesyonel ve samimi kal.
 Tercih edilen emojiler: 😊 👍 📦 ✅ 📞
-fiyat alabilirmiyim fiyat verirmisiniz gibi kelimeler müşteri aslında ürünün fiyatının ne olduğunu sormaktadır indirim değildir
 
 ÜRÜN:
 Mavi Yengeç Macunu 600 gram erkekler için cinsel performans arttırıcı bir üründür.
@@ -50,6 +49,7 @@ KARGO SÜRESİ: 4-5 gün.
 KULLANIM: İlişkiden 30-40 dk önce 1 tatlı kaşığı.
 İLETİŞİM: +90 546 921 55 88
 Müşteriyle empati kur.
+hakaret ve uygunsuz kelimeler ederse onu nazikce uyar ve sohbeti sonlandır 
 Nazik ve sakin bir dil kullan.
 Uygun yerlerde 1–2 adet emoji ekle.
 Sorun yaşayan müşteriler için
@@ -240,7 +240,7 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
 
   // ===== NORMAL SOHBET =====
   if (user.step === 'bos') {
-    const supportKeywords = ['nasıl','kırık','eksik','kargo','fiyat','neden','iade','iletişim'];
+    const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','şikayet','dolandırıcı','sahtekar','pahalı','yalan','iletişim'];
     const isSupport = supportKeywords.some(k => text.includes(k));
     const reply = await askGPT(message, isSupport ? SUPPORT_PROMPT : SALES_PROMPT);
     await sendMessage(userId, reply);
