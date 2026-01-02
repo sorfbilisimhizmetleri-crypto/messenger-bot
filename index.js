@@ -125,7 +125,6 @@ async function sendToSheet(order) {
       phone: order.telefon,
       address: order.adres,
       package: order.paket
-    }
 }
     );
 
