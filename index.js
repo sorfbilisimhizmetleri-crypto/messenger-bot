@@ -175,11 +175,11 @@ Yeni bir sipariş için "yeni sipariş" yazabilirsiniz.`
       userId,
       `Hangi paketi istiyorsunuz?
 
-1️⃣ 1 Kavanoz – 699 TL
-2️⃣ 2 Kavanoz + Krem + Damla – 1000 TL
-3️⃣ 4 Kavanoz + Krem + Damla – 1600 TL
+1️⃣ 1 Kavanoz –699 TL
+2️⃣ 2 Kavanoz + Krem + Damla hediye – 1000 TL
+3️⃣ 4 Kavanoz + Krem + Damla – hediye 1600 TL
 
-1 / 2 / 3 ya da "1 kavanoz" şeklinde yazabilirsiniz.`
+.`
     );
   }
 
