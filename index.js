@@ -10,6 +10,7 @@ app.use(bodyParser.json());
 // 🧠 KULLANICI HAFIZASI
 // =======================
 const users = {};
+const processedMessages = new Set(); // Çift mesaj önleyici hafıza
 
 // =======================
 // 🟢 BİLGİ BANKASI
@@ -63,10 +64,35 @@ app.get('/webhook', (req, res) => {
 // =======================
 app.post('/webhook', async (req, res) => {
   const event = req.body.entry?.[0]?.messaging?.[0];
-  if (!event || !event.message?.text) return res.sendStatus(200);
+  
+  // 1. Olay yoksa veya mesaj metni yoksa çık
+  if (!event || !event.message) return res.sendStatus(200);
+
+  // 🛑 2. KRİTİK KORUMA: KENDİ MESAJINI YOKSAY (is_echo)
+  // Bu satır olmazsa bot kendi kendine konuşur ve sürekli sipariş girer!
+  if (event.message.is_echo) {
+      return res.sendStatus(200);
+  }
+
+  // 🛑 3. KORUMA: ÇİFT MESAJ ENGELLEME (Facebook Retry)
+  const messageId = event.message.mid;
+  if (messageId && processedMessages.has(messageId)) {
+      return res.sendStatus(200); 
+  }
+  if (messageId) {
+      processedMessages.add(messageId);
+      if (processedMessages.size > 1000) { // Hafıza temizliği
+          const iterator = processedMessages.values();
+          for(let i=0; i<500; i++) processedMessages.delete(iterator.next().value);
+      }
+  }
 
   const userId = event.sender.id;
+  
+  // Sadece metin mesajlarını işleyelim (Resim vs. gelirse patlamasın)
   const message = event.message.text;
+  if (!message) return res.sendStatus(200);
+  
   const text = message.toLowerCase();
 
   sendTypingOn(userId);
@@ -97,15 +123,11 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
     return res.sendStatus(200);
   }
 
-  // ==========================================
-  // 🔥🔥🔥 AKILLI VERİ YÖNETİCİSİ (HATA DÜZELTİCİ) 🔥🔥🔥
-  // ==========================================
+  // 🔥🔥🔥 AKILLI VERİ YÖNETİCİSİ 🔥🔥🔥
   if (['paket', 'isim', 'telefon', 'adres'].includes(user.step)) {
       
-      // 1. Önce mesajın içindeki bilgileri çekelim
       const extracted = await extractOrderDetails(message);
       
-      // Bulunanları kaydet
       if (extracted.isim) user.isim = extracted.isim;
       if (extracted.telefon) user.telefon = extracted.telefon;
       if (extracted.adres) user.adres = extracted.adres;
@@ -115,20 +137,15 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
                         '4 Kavanoz + Krem + Damla – 1600 TL';
       }
 
-      // 2. ÖZEL DURUM: Manuel Paket Seçimi (Rakamla yazdıysa)
       if (user.step === 'paket' && ['1', '2', '3'].includes(text)) {
            user.paket = text === '1' ? '1 Kavanoz – 699 TL' :
                         text === '2' ? '2 Kavanoz + Krem + Damla – 1000 TL' :
                         '4 Kavanoz + Krem + Damla – 1600 TL';
       }
 
-      // 3. EKSİK BİLGİ KONTROLÜ VE YÖNLENDİRME (Zincirleme Reaksiyon Engelleyici)
-      // Burada "return" kullanarak kodun aşağıya akmasını engelliyoruz.
-      
-      // --- PAKET EKSİKSE ---
+      // EKSİK BİLGİ KONTROLÜ
       if (!user.paket) {
           user.step = 'paket';
-          // Eğer AI paketi anlayamadıysa ve kullanıcı soru sormuyorsa tekrar sor
           if (!extracted.paket && user.step === 'paket') {
               const aiResponse = await analyzePackageIntent(message);
               if (aiResponse.reply && !aiResponse.reply.includes('[ONAY]')) {
@@ -136,35 +153,28 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
                   return res.sendStatus(200);
               }
           }
-          // Paket seçilmediyse bekle
           return res.sendStatus(200);
       }
 
-      // --- İSİM EKSİKSE ---
       if (!user.isim) {
-          // Paketi yeni seçtiyse veya isim hala yoksa
           if (user.step !== 'isim') {
              user.step = 'isim';
              await sendMessage(userId, `✅ ${user.paket} seçildi.\n\nSiparişe devam etmek için Ad Soyad alabilir miyim?`);
-             return res.sendStatus(200); // DUR
+             return res.sendStatus(200); 
           }
-          // Zaten isim adımındaysa ve AI isim bulamadıysa (veya soru sorduysa)
           const analysis = await analyzeInput(message, 'AD SOYAD');
           if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
               await sendMessage(userId, analysis.reply);
           }
-          return res.sendStatus(200); // DUR
+          return res.sendStatus(200);
       }
 
-      // --- TELEFON EKSİKSE ---
       if (!user.telefon) {
-          // İsmi yeni aldıysa ve telefonu yoksa
           if (user.step !== 'telefon') {
              user.step = 'telefon';
              await sendMessage(userId, `Teşekkürler ${user.isim}.\n\nİletişim için Telefon numaranızı yazar mısınız?`);
-             return res.sendStatus(200); // DUR (Burada durmadığı için "kemal aslan"ı telefon sanıyordu)
+             return res.sendStatus(200);
           }
-          // Zaten telefon adımındaysa ve AI telefon bulamadıysa
            const analysis = await analyzeInput(message, 'TELEFON NUMARASI');
            if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
               await sendMessage(userId, analysis.reply);
@@ -172,12 +182,11 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
           return res.sendStatus(200);
       }
 
-      // --- ADRES EKSİKSE ---
       if (!user.adres) {
           if (user.step !== 'adres') {
              user.step = 'adres';
              await sendMessage(userId, 'Son olarak kargonun geleceği açık adresinizi yazar mısınız?');
-             return res.sendStatus(200); // DUR
+             return res.sendStatus(200);
           }
            const analysis = await analyzeInput(message, 'AÇIK ADRES');
            if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
@@ -186,7 +195,6 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
           return res.sendStatus(200);
       }
 
-      // --- HEPSİ TAMAMSA ---
       user.step = 'bitti_onay';
   }
 
