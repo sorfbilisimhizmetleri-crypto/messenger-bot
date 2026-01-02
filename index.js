@@ -47,14 +47,10 @@ app.get('/', (req, res) => {
   res.send('BOT ÇALIŞIYOR 🚀');
 });
 
-// =======================
-// FACEBOOK DOĞRULAMA
-// =======================
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-
   if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
     res.status(200).send(challenge);
   } else {
@@ -73,13 +69,12 @@ app.post('/webhook', async (req, res) => {
   const message = event.message.text;
   const text = message.toLowerCase();
 
-  // Yazıyor efekti gönder (Bekletmemek için)
   sendTypingOn(userId);
 
   if (!users[userId]) users[userId] = { step: 'bos' };
   const user = users[userId];
 
-  // ===== İPTAL / BAŞA DÖN =====
+  // ===== İPTAL / RESET =====
   if (['iptal', 'başa dön', 'reset'].includes(text)) {
       users[userId] = { step: 'bos' };
       await sendMessage(userId, "Sipariş işlemi iptal edildi. Nasıl yardımcı olabilirim?");
@@ -89,7 +84,7 @@ app.post('/webhook', async (req, res) => {
   // ===== SİPARİŞ BAŞLATMA =====
   if (text.includes('sipariş') && user.step === 'bos') {
     user.step = 'paket';
-    return sendMessage(
+    await sendMessage(
       userId,
       `Hangi paketi istiyorsunuz?
 
@@ -99,30 +94,44 @@ app.post('/webhook', async (req, res) => {
 
 Lütfen paketi seçiniz (1, 2 veya 3)`
     );
+    return res.sendStatus(200); // BURADA DUR VE CEVAP BEKLE
   }
 
-  // 🔥🔥🔥 ADIM 0: SÜPER ANALİZ (TOPLU BİLGİ YAKALAMA) 🔥🔥🔥
-  // Kullanıcı herhangi bir adımdayken toplu bilgi verirse (örn: "1 kavanoz adım ahmet...")
+  // 🔥🔥🔥 SÜPER ANALİZ (TOPLU BİLGİ KONTROLÜ) 🔥🔥🔥
+  // Sadece sipariş adımlarındayken çalışsın
   if (['paket', 'isim', 'telefon', 'adres'].includes(user.step)) {
       
       const extracted = await extractOrderDetails(message);
       
-      // Bilgileri güncelle (Varsa üzerine yaz, yoksa elleme)
+      // 1. Yeni bilgileri hafızaya ekle (Eskisini ezme)
       if (extracted.isim) user.isim = extracted.isim;
       if (extracted.telefon) user.telefon = extracted.telefon;
       if (extracted.adres) user.adres = extracted.adres;
+      
+      let packetJustSelected = false;
       if (extracted.paket) {
            user.paket = extracted.paket === '1' ? '1 Kavanoz – 699 TL' :
                         extracted.paket === '2' ? '2 Kavanoz + Krem + Damla – 1000 TL' :
                         '4 Kavanoz + Krem + Damla – 1600 TL';
+           packetJustSelected = true;
       }
 
-      // Adım Kontrolü: Bilgiler doldukça bot otomatik ilerlesin
-      if (!user.paket) user.step = 'paket';
-      else if (!user.isim) user.step = 'isim';
-      else if (!user.telefon) user.step = 'telefon';
-      else if (!user.adres) user.step = 'adres';
-      else user.step = 'bitti_onay';
+      // 🛑 FREN: Paket seçildi ("1 kavanoz gönder") ama isim yoksa işlemi burada kes.
+      // Aksi takdirde "1 kavanoz gönder" yazısını isim sanıyor.
+      if (packetJustSelected && !user.isim) {
+          user.step = 'isim';
+          await sendMessage(userId, `✅ ${user.paket} seçildi.\n\nSiparişe devam etmek için Ad Soyad alabilir miyim?`);
+          return res.sendStatus(200); // KODU BURADA DURDUR
+      }
+      
+      // Eğer toplu bilgi (mesela isim+tel+adres) geldiyse adımı ileri taşı
+      if (user.paket && user.isim && user.telefon && user.adres) {
+          user.step = 'bitti_onay'; 
+          // Burada return yapmıyoruz, aşağıda 'bitti_onay' bloğu çalışsın diye bırakıyoruz.
+      }
+      else if (user.paket && user.isim && user.telefon) user.step = 'adres';
+      else if (user.paket && user.isim) user.step = 'telefon';
+      else if (user.paket) user.step = 'isim';
   }
 
   // ==========================================
@@ -132,19 +141,12 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
     let selectedPackage = null;
     let replyMessage = null;
 
-    // 1. Durum: Kullanıcı direkt sayı yazdı
     if (['1', '2', '3'].includes(text)) {
         selectedPackage = text;
-    } 
-    // 2. Durum: AI ile analiz et ("1 kavanoz istiyorum" vb.)
-    else {
+    } else {
         const aiAnalysis = await analyzePackageIntent(message);
-        if (aiAnalysis.selection) {
-            selectedPackage = aiAnalysis.selection;
-        } else {
-            // Soru sorduysa cevabını kaydet
-            replyMessage = aiAnalysis.reply; 
-        }
+        if (aiAnalysis.selection) selectedPackage = aiAnalysis.selection;
+        else replyMessage = aiAnalysis.reply; 
     }
 
     if (selectedPackage) {
@@ -152,14 +154,13 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
                    selectedPackage === '2' ? '2 Kavanoz + Krem + Damla – 1000 TL' :
                    '4 Kavanoz + Krem + Damla – 1600 TL';
       
-      user.step = 'isim'; // Sonraki adıma geç
-      return sendMessage(userId, `✅ ${user.paket} seçildi.\n\nSiparişe devam etmek için Ad Soyad alabilir miyim?`);
-    } else if (replyMessage) {
-       // Eğer paket seçmediyse ve soru sorduysa cevabı ver
-       // Ama ONAY kelimesi içeriyorsa gönderme
-       if (!replyMessage.includes('[ONAY]')) {
-           return sendMessage(userId, replyMessage + "\n\n(Lütfen paketinizi 1, 2 veya 3 olarak belirtiniz.)");
-       }
+      user.step = 'isim';
+      await sendMessage(userId, `✅ ${user.paket} seçildi.\n\nAd Soyad alabilir miyim?`);
+      return res.sendStatus(200); // 🛑 ÖNEMLİ: DUR VE CEVAP BEKLE
+    } 
+    else if (replyMessage && !replyMessage.includes('[ONAY]')) {
+       await sendMessage(userId, replyMessage + "\n\n(Lütfen 1, 2 veya 3 seçiniz.)");
+       return res.sendStatus(200);
     }
   }
 
@@ -167,18 +168,18 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
   // ADIM 2: İSİM ALMA
   // ==========================================
   if (user.step === 'isim') {
-    // Üstteki süper analiz zaten ismi bulduysa burayı atlar, bulmadıysa sorar.
-    // AI Kontrolü: İsim mi, soru mu?
+    // Üstteki süper analiz ismi bulduysa burayı atlar. Bulmadıysa:
     const analysis = await analyzeInput(message, 'AD SOYAD');
     
     if (analysis.isValid) {
         user.isim = message;
         user.step = 'telefon';
-        return sendMessage(userId, `Teşekkürler ${user.isim}.\n\nİletişim için Telefon numaranızı yazar mısınız?`);
+        await sendMessage(userId, `Teşekkürler ${user.isim}.\n\nİletişim için Telefon numaranızı yazar mısınız?`);
+        return res.sendStatus(200); // 🛑 ÖNEMLİ: DUR VE CEVAP BEKLE
     } else {
-        // Eğer soru sorduysa cevabı ver
         if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
-            return sendMessage(userId, analysis.reply);
+            await sendMessage(userId, analysis.reply);
+            return res.sendStatus(200);
         }
     }
   }
@@ -190,13 +191,15 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
     const analysis = await analyzeInput(message, 'TELEFON NUMARASI');
 
     if (analysis.isValid) {
-        user.telefon = message;
-        user.step = 'adres';
-        return sendMessage(userId, 'Son olarak kargonun geleceği açık adresinizi yazar mısınız?');
+        user.telefon = message; // Mesajı telefon olarak kaydet
+        user.step = 'adres';    // Adımı güncelle
+        await sendMessage(userId, 'Son olarak kargonun geleceği açık adresinizi yazar mısınız?');
+        return res.sendStatus(200); // 🛑 ÖNEMLİ: Burada durmazsa, aşağıdaki adres kodunu da çalıştırır ve telefonu adres sanar!
     } else {
          if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
-            return sendMessage(userId, analysis.reply);
-        }
+            await sendMessage(userId, analysis.reply);
+            return res.sendStatus(200);
+         }
     }
   }
 
@@ -209,9 +212,11 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
     if (analysis.isValid) {
         user.adres = message;
         user.step = 'bitti_onay';
+        // Buradan aşağıya akabilir, çünkü bitiş işlemi yapılacak
     } else {
          if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
-            return sendMessage(userId, analysis.reply);
+            await sendMessage(userId, analysis.reply);
+            return res.sendStatus(200);
         }
     }
   }
@@ -220,22 +225,29 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
   // SONUÇ: SİPARİŞ TAMAMLANDI
   // ==========================================
   if (user.step === 'bitti_onay') {
-      // Google Sheets'e kaydet (Await yok = HIZLI)
-      sendToSheet(user); 
+      
+      // Sadece tüm bilgiler tamsa kaydet
+      if (user.paket && user.isim && user.telefon && user.adres) {
+          sendToSheet(user); 
 
-      await sendMessage(
-        userId,
-        `✅ Siparişiniz başarıyla alındı!
+          await sendMessage(
+            userId,
+            `✅ Siparişiniz başarıyla alındı!
 
 📦 ${user.paket}
 👤 ${user.isim}
 📞 ${user.telefon}
 📍 ${user.adres}
 
-🚚 Ücretsiz kargo ile en kısa sürede gönderilecektir. Teşekkürler!`
-      );
-      
-      users[userId] = { step: 'bos' }; // Hafızayı temizle
+🚚 Ücretsiz kargo ile en kısa sürede gönderilecektir.`
+          );
+          
+          users[userId] = { step: 'bos' }; // Hafızayı temizle
+      } else {
+          // Bir şeyler eksikse kullanıcıyı resetlemeden uyar
+          await sendMessage(userId, "Bir sorun oluştu, bilgiler eksik görünüyor. Lütfen 'başa dön' yazıp tekrar deneyin.");
+      }
+      return res.sendStatus(200);
   }
 
   // ===== NORMAL SOHBET =====
@@ -250,7 +262,7 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
 });
 
 // =======================
-// 🧠 SİHİRLİ FONKSİYON 1: PAKET NİYET ANALİZİ
+// YARDIMCI FONKSİYONLAR (Aynen Kalacak)
 // =======================
 async function analyzePackageIntent(userMessage) {
     const PROMPT = `
@@ -259,7 +271,7 @@ GÖREV: Kullanıcı paket seçiyor. Mesaj: "${userMessage}"
 Seçenekler: 1 (1 Kavanoz), 2 (2 Kavanoz), 3 (4 Kavanoz).
 
 1. Eğer kullanıcı paket seçtiyse sadece kodu döndür: [SECIM:1] veya [SECIM:2] veya [SECIM:3]
-2. Eğer soru soruyorsa cevapla. Asla [ONAY] veya [SECIM] yazma.
+2. Eğer soru soruyorsa cevapla.
 `;
     try {
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -268,25 +280,25 @@ Seçenekler: 1 (1 Kavanoz), 2 (2 Kavanoz), 3 (4 Kavanoz).
         }, { headers: { Authorization: `Bearer ${process.env.OPENAI_KEY}` } });
 
         const content = response.data.choices[0].message.content;
-
         if (content.includes('[SECIM:1]')) return { selection: '1', reply: null };
         if (content.includes('[SECIM:2]')) return { selection: '2', reply: null };
         if (content.includes('[SECIM:3]')) return { selection: '3', reply: null };
-        
-        // Eğer yanlışlıkla ONAY döndürdüyse bunu soru gibi algılama, null dön
-        if (content.includes('[ONAY]')) return { selection: null, reply: null };
-
+        if (content.includes('[ONAY]')) return { selection: null, reply: null }; // Hata önleyici
         return { selection: null, reply: content };
-    } catch (e) { return { selection: null, reply: "Paketinizi anlayamadım, lütfen 1, 2 veya 3 yazın." }; }
+    } catch (e) { return { selection: null, reply: "Lütfen 1, 2 veya 3 yazınız." }; }
 }
 
-// =======================
-// 🧠 SİHİRLİ FONKSİYON 2: GENEL GİRDİ ANALİZİ
-// =======================
 async function analyzeInput(userMessage, expectedType) {
+    // İsim için özel koruma: "1 kavanoz" gibi şeyleri isim sanmasın
+    let extraInstruction = "";
+    if (expectedType === 'AD SOYAD') {
+        extraInstruction = "Eğer mesaj '1 kavanoz', 'sipariş ver', 'merhaba' gibi genel bir ifadeyse veya ürün sorusuysa ASLA [ONAY] verme. Sadece gerçek bir isim soyisimse [ONAY] ver.";
+    }
+
     const PROMPT = `
 ${FULL_KNOWLEDGE}
 GÖREV: Kullanıcıdan "${expectedType}" istendi. Mesaj: "${userMessage}"
+${extraInstruction}
 
 1. Eğer mesaj geçerli bir veri içeriyorsa sadece şunu yaz: [ONAY]
 2. Soru soruyorsa cevapla.
@@ -298,24 +310,20 @@ GÖREV: Kullanıcıdan "${expectedType}" istendi. Mesaj: "${userMessage}"
         }, { headers: { Authorization: `Bearer ${process.env.OPENAI_KEY}` } });
 
         const content = response.data.choices[0].message.content;
-        
-        // Eğer AI [ONAY] dediyse bu geçerli veridir.
-        // Reply kısmını NULL yapıyoruz ki kullanıcıya "ONAY" gitmesin.
         if (content.includes('[ONAY]')) return { isValid: true, reply: null };
-        
         return { isValid: false, reply: content };
     } catch (e) { return { isValid: true, reply: null }; }
 }
 
-// =======================
-// 🧠 SİHİRLİ FONKSİYON 3: TOPLU VERİ ÇEKME
-// =======================
 async function extractOrderDetails(userMessage) {
     const PROMPT = `
 GÖREV: Mesajdan sipariş bilgilerini JSON olarak çıkar.
 MESAJ: "${userMessage}"
-ÇIKTI FORMATI: {"isim": "...", "telefon": "...", "adres": "...", "paket": "..."} (Yoksa null)
-Paket: Miktar belirtilmişse 1, 2 veya 3.
+ÇIKTI FORMATI: {"isim": "...", "telefon": "...", "adres": "...", "paket": "..."}
+Paket: Miktar belirtilmişse 1, 2 veya 3. Yoksa null.
+İsim: Yoksa null.
+Telefon: Yoksa null.
+Adres: Yoksa null.
 `;
     try {
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -329,9 +337,6 @@ Paket: Miktar belirtilmişse 1, 2 veya 3.
     } catch (e) { return {}; }
 }
 
-// =======================
-// YAZIYOR EFEKTİ & MESAJ
-// =======================
 async function sendTypingOn(userId) {
   try {
     await axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${process.env.PAGE_TOKEN}`,
@@ -355,9 +360,6 @@ async function askGPT(message, prompt) {
     } catch(e) { return "Hata."; }
 }
 
-// =======================
-// GOOGLE SHEETS
-// =======================
 async function sendToSheet(order) {
     try { axios.post('https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec', 
     { name: order.isim, phone: order.telefon, address: order.adres, package: order.paket }); } 
