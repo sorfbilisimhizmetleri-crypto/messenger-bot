@@ -53,7 +53,6 @@ KURALLAR:
 3. İLETİŞİM: +90 546 921 55 88 (Sorulursa paylaş).
 
 HAZIR BİLGİLER:
-FİYAT: Sabittir.
 KARGO SÜRESİ: 4-5 gün.
 KULLANIM: İlişkiden 30-40 dk önce 1 tatlı kaşığı.
 SPREY NEDİR: Hediye gönderilen geciktirici spreydir.
@@ -244,7 +243,7 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
   // ===== NORMAL SOHBET =====
   if (user.step === 'bos') {
     // Soru soran müşteri buraya düşer.
-    const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','şikayet','sprey','jel','geldi','soru','bilgi','nedir','merhaba','slm'];
+    const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','şikayet','damla','krem','geldi','soru','bilgi','yalan'];
     const isSupport = supportKeywords.some(k => text.includes(k));
     const reply = await askGPT(message, isSupport ? SUPPORT_PROMPT : SALES_PROMPT);
     await sendMessage(userId, reply);
