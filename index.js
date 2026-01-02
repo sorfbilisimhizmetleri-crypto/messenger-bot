@@ -118,7 +118,10 @@ function detectPackage(text) {
 
 async function saveOrderToSheet(order) {
   try {
-    await axios.post(process.env.SHEET_URL, order);
+    await axios.post(
+      'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
+      order
+    );
   } catch (e) {
     console.log('Sheet kayıt hatası:', e.message);
   }
