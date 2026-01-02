@@ -28,8 +28,8 @@ Net, ikna edici ve güven veren cevaplar ver.
 ÜRÜN BİLGİSİ:
 Mavi Yengeç Macunu 600 gram erkekler için cinsel performans arttırıcı bir üründür.
 Performansı 12 kat artırır. Erken boşalma, sertleşme ve isteksizlik sorunlarını çözer. Yan etkisi yoktur.
-SPREY (HEDİYE): Geciktirici spreydir. İlişkiden 15-20 dk önce 3 fıs sıkılır.
-MAVİ JEL (HEDİYE): Macunun etkisini hızlandıran özel bir karışımdır.
+DAMLA (HEDİYE): kadın libido yükseltici bir damladır. İlişkiden 15-20 dk önce 2-3 damla içeceğe eklenir.
+KREM  (HEDİYE): penis büyütücü ve geciktirici özelliği vardır istediğiniz zaman penise sürebilirsiniz ilişkiden 35 dk önce  etkisini hızlandıran özel bir karışımdır.
 
 PAKET SEÇENEKLERİ:
 1. SEÇENEK: 1 Kavanoz 600 GRAM - 699 TL
