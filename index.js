@@ -13,7 +13,7 @@ const users = {};
 const processedMessages = new Set(); // Çift mesaj önleyici hafıza
 
 // =======================
-// 🟢 BİLGİ BANKASI (SENİN PROMOTLARIN + ÜRÜN BİLGİSİ)
+// 🟢 BİLGİ BANKASI (SENİN KURALLARIN + ÜRÜN BİLGİSİ)
 // =======================
 const SALES_PROMPT = `
 Sen MAVİ YENGEÇ MACUNU satan profesyonel bir satış danışmanısın.
@@ -28,8 +28,8 @@ Net, ikna edici ve güven veren cevaplar ver.
 ÜRÜN BİLGİSİ:
 Mavi Yengeç Macunu 600 gram erkekler için cinsel performans arttırıcı bir üründür.
 Performansı 12 kat artırır. Erken boşalma, sertleşme ve isteksizlik sorunlarını çözer. Yan etkisi yoktur.
-DAMLA (HEDİYE): kadın libido yükseltici bir damladır. İlişkiden 15-20 dk önce 2-3 damla içeceğe eklenir.
-KREM  (HEDİYE): penis büyütücü ve geciktirici özelliği vardır istediğiniz zaman penise sürebilirsiniz ilişkiden 35 dk önce  etkisini hızlandıran özel bir karışımdır.
+SPREY (HEDİYE): Geciktirici spreydir. İlişkiden 15-20 dk önce 3 fıs sıkılır.
+MAVİ JEL (HEDİYE): Macunun etkisini hızlandıran özel bir karışımdır.
 
 PAKET SEÇENEKLERİ:
 1. SEÇENEK: 1 Kavanoz 600 GRAM - 699 TL
@@ -53,6 +53,7 @@ KURALLAR:
 3. İLETİŞİM: +90 546 921 55 88 (Sorulursa paylaş).
 
 HAZIR BİLGİLER:
+FİYAT: Sabittir.
 KARGO SÜRESİ: 4-5 gün.
 KULLANIM: İlişkiden 30-40 dk önce 1 tatlı kaşığı.
 SPREY NEDİR: Hediye gönderilen geciktirici spreydir.
@@ -116,17 +117,14 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
   }
 
-  // ===== SİPARİŞ BAŞLATMA (NİYET ANALİZİ İLE) =====
+  // ===== SİPARİŞ BAŞLATMA (NİYET ANALİZİ) =====
   if (text.includes('sipariş') && user.step === 'bos') {
       
-      // Önce niyeti kontrol et: Soru mu, Sipariş mi?
       const intent = await analyzeOrderIntent(message);
 
       if (intent === 'SORU') {
-          // Soruysa hiçbir şey yapma, aşağıda normal sohbet cevaplasın.
           console.log("Sipariş kelimesi geçti ama bu bir soru.");
       } else {
-          // Yeni sipariş ise başlat
           user.step = 'paket';
           await sendMessage(
             userId,
@@ -145,6 +143,7 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
   // 🔥🔥🔥 AKILLI VERİ YÖNETİCİSİ 🔥🔥🔥
   if (['paket', 'isim', 'telefon', 'adres'].includes(user.step)) {
       
+      // 1. Toplu Bilgi Yakalama (extractOrderDetails)
       const extracted = await extractOrderDetails(message);
       
       if (extracted.isim) user.isim = extracted.isim;
@@ -156,65 +155,89 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
                         '4 Kavanoz Set – 1600 TL';
       }
 
-      // Manuel Paket Seçimi
+      // 2. Manuel Paket Seçimi (Rakamla)
       if (user.step === 'paket' && ['1', '2', '3'].includes(text)) {
            user.paket = text === '1' ? '1 Kavanoz – 699 TL' :
                         text === '2' ? '2 Kavanoz Set – 1000 TL' :
                         '4 Kavanoz Set – 1600 TL';
       }
 
-      // EKSİK BİLGİ KONTROLÜ
+      // 🛑 3. EKSİK BİLGİ KONTROLÜ VE KAYDETME (DÜZELTİLEN YER) 🛑
+      
+      // --- PAKET EKSİKSE ---
       if (!user.paket) {
           user.step = 'paket';
+          // Eğer AI paketi bulamadıysa, kullanıcıya sor
           if (!extracted.paket && user.step === 'paket') {
               const aiResponse = await analyzePackageIntent(message);
-              if (aiResponse.reply && !aiResponse.reply.includes('[ONAY]')) {
+              // Eğer cevap geçerliyse kaydetmeye çalış
+              if (aiResponse.selection) {
+                  user.paket = aiResponse.selection === '1' ? '1 Kavanoz – 699 TL' :
+                               aiResponse.selection === '2' ? '2 Kavanoz Set – 1000 TL' :
+                               '4 Kavanoz Set – 1600 TL';
+              } else if (aiResponse.reply && !aiResponse.reply.includes('[ONAY]')) {
                   await sendMessage(userId, aiResponse.reply);
                   return res.sendStatus(200);
               }
           }
-          return res.sendStatus(200);
+          // Hala paket yoksa bekle
+          if (!user.paket) return res.sendStatus(200);
       }
 
+      // --- İSİM EKSİKSE ---
       if (!user.isim) {
-          if (user.step !== 'isim') {
+          // Eğer adım 'isim' ise ve kullanıcı bir şey yazdıysa KONTROL ET VE KAYDET
+          if (user.step === 'isim') {
+              const analysis = await analyzeInput(message, 'AD SOYAD');
+              if (analysis.isValid) {
+                  user.isim = message; // ✅ İŞTE BURASI: İSMİ ARTIK KAYDEDİYORUZ
+              } else {
+                  await sendMessage(userId, analysis.reply);
+                  return res.sendStatus(200); // İsim geçersizse dur
+              }
+          } else {
+             // Henüz isim adımında değilse, oraya yönlendir
              user.step = 'isim';
              await sendMessage(userId, `✅ ${user.paket} seçildi.\n\nSiparişe devam etmek için Ad Soyad alabilir miyim?`);
              return res.sendStatus(200); 
           }
-          const analysis = await analyzeInput(message, 'AD SOYAD');
-          if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
-              await sendMessage(userId, analysis.reply);
-          }
-          return res.sendStatus(200);
       }
 
+      // --- TELEFON EKSİKSE ---
       if (!user.telefon) {
-          if (user.step !== 'telefon') {
+          if (user.step === 'telefon') {
+              const analysis = await analyzeInput(message, 'TELEFON NUMARASI');
+              if (analysis.isValid) {
+                  user.telefon = message; // ✅ TELEFONU KAYDET
+              } else {
+                  await sendMessage(userId, analysis.reply);
+                  return res.sendStatus(200);
+              }
+          } else {
              user.step = 'telefon';
              await sendMessage(userId, `Teşekkürler ${user.isim}.\n\nİletişim için Telefon numaranızı yazar mısınız?`);
              return res.sendStatus(200);
           }
-           const analysis = await analyzeInput(message, 'TELEFON NUMARASI');
-           if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
-              await sendMessage(userId, analysis.reply);
-          }
-          return res.sendStatus(200);
       }
 
+      // --- ADRES EKSİKSE ---
       if (!user.adres) {
-          if (user.step !== 'adres') {
+          if (user.step === 'adres') {
+              const analysis = await analyzeInput(message, 'AÇIK ADRES');
+              if (analysis.isValid) {
+                  user.adres = message; // ✅ ADRESİ KAYDET
+              } else {
+                  await sendMessage(userId, analysis.reply);
+                  return res.sendStatus(200);
+              }
+          } else {
              user.step = 'adres';
              await sendMessage(userId, 'Son olarak kargonun geleceği açık adresinizi yazar mısınız?');
              return res.sendStatus(200);
           }
-           const analysis = await analyzeInput(message, 'AÇIK ADRES');
-           if (analysis.reply && !analysis.reply.includes('[ONAY]')) {
-              await sendMessage(userId, analysis.reply);
-          }
-          return res.sendStatus(200);
       }
 
+      // Eğer buraya geldiysek tüm bilgiler DOLU demektir.
       user.step = 'bitti_onay';
   }
 
@@ -222,11 +245,25 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
   // SONUÇ: SİPARİŞ TAMAMLANDI
   // ==========================================
   if (user.step === 'bitti_onay') {
-      if (user.paket && user.isim && user.telefon && user.adres) {
-          sendToSheet(user); 
-          await sendMessage(
-            userId,
-            `✅ Siparişiniz başarıyla alındı!
+      
+      // 🛑 GÜVENLİK DUVARI: BİLGİLER EKSİKSE ASLA KAYDETME 🛑
+      if (!user.paket || !user.isim || !user.telefon || !user.adres) {
+          console.log("Eksik bilgi tespit edildi, başa dönülüyor.");
+          // Kullanıcıyı uygun adıma geri at
+          if (!user.paket) user.step = 'paket';
+          else if (!user.isim) user.step = 'isim';
+          else if (!user.telefon) user.step = 'telefon';
+          else user.step = 'adres';
+          
+          await sendMessage(userId, "Bir bilgiyi eksik girdiniz. Lütfen tekrar eder misiniz?");
+          return res.sendStatus(200);
+      }
+
+      // Her şey tamsa kaydet
+      sendToSheet(user); 
+      await sendMessage(
+        userId,
+        `✅ Siparişiniz başarıyla alındı!
 
 📦 ${user.paket}
 👤 ${user.isim}
@@ -234,16 +271,15 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
 📍 ${user.adres}
 
 🚚 Ücretsiz kargo ile en kısa sürede gönderilecektir.`
-          );
-          users[userId] = { step: 'bos' }; 
-      }
+      );
+      users[userId] = { step: 'bos' }; 
+      
       return res.sendStatus(200);
   }
 
   // ===== NORMAL SOHBET =====
   if (user.step === 'bos') {
-    // Soru soran müşteri buraya düşer.
-    const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','şikayet','damla','krem','geldi','soru','bilgi','yalan'];
+    const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','şikayet','sprey','jel','geldi','soru','bilgi','nedir','merhaba','slm'];
     const isSupport = supportKeywords.some(k => text.includes(k));
     const reply = await askGPT(message, isSupport ? SUPPORT_PROMPT : SALES_PROMPT);
     await sendMessage(userId, reply);
