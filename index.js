@@ -117,31 +117,29 @@ function detectPackage(text) {
   return null;
 }
 
+// =======================
+// 📊 GOOGLE E-TABLOLAR
+// =======================
 async function sendToSheet(order) {
-  await axios.post(
-    'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
-    {
-      name: order.isim,
-      phone: order.telefon,
-      address: order.adres,
-      package: order.paket
-}
-
-    console.log('✅ Google Sheet’e gönderildi');
-  } catch (err) {
-    console.error('❌ Google Sheet HATASI:', err.message);
-  }
-}
-
+  try {
+    await axios.post(
+      'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
+      {
+        name: order.isim,
+        phone: order.telefon,
+        address: order.adres,
+        package: order.paket
+      }
     );
-
-    console.log('✅ Sipariş Google Sheet’e gönderildi');
-  } catch (e) {
-    console.error('❌ Sheet gönderme hatası:', e.message);
+  } catch (err) {
+    console.error('Sheets gönderme hatası:', err.message);
   }
 }
 
-
+// =======================
+app.listen(process.env.PORT || 3000, () => {
+  console.log('Bot çalışıyor 🚀');
+});
 
 // =======================
 // MESAJ ALMA
