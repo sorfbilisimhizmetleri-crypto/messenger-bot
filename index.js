@@ -119,14 +119,28 @@ function detectPackage(text) {
 
 async function saveOrderToSheet(order) {
   try {
+    const params = new URLSearchParams();
+    params.append('isim', order.isim);
+    params.append('telefon', order.telefon);
+    params.append('adres', order.adres);
+    params.append('paket', order.paket);
+    params.append('userId', order.userId);
+    params.append('tarih', order.tarih);
+
     await axios.post(
-      'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
-      order
+      process.env.SHEET_URL,
+      params.toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
     );
   } catch (e) {
     console.log('Sheet kayıt hatası:', e.message);
   }
 }
+
 
 // =======================
 // MESAJ ALMA
