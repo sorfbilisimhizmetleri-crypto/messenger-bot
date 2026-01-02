@@ -119,22 +119,27 @@ function detectPackage(text) {
 
 async function saveOrderToSheet(order) {
   try {
-    const params = new URLSearchParams();
-    params.append('isim', order.isim);
-    params.append('telefon', order.telefon);
-    params.append('adres', order.adres);
-    params.append('paket', order.paket);
-    params.append('userId', order.userId);
-    params.append('tarih', order.tarih);
-
     await axios.post(
       'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
-      params.toString(),
+      null,
       {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+        params: {
+          isim: order.isim,
+          telefon: order.telefon,
+          adres: order.adres,
+          paket: order.paket,
+          userId: order.userId,
+          tarih: order.tarih
         }
       }
+    );
+
+    console.log('✅ Google Sheet’e gönderildi');
+  } catch (err) {
+    console.error('❌ Google Sheet HATASI:', err.message);
+  }
+}
+
     );
 
     console.log('✅ Sipariş Google Sheet’e gönderildi');
