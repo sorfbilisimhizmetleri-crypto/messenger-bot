@@ -18,6 +18,11 @@ const processedMessages = new Set(); // Çift mesaj önleyici hafıza
 const SALES_PROMPT = `
 Sen MAVİ YENGEÇ MACUNU satan profesyonel bir satış danışmanısın.
 Net, ikna edici ve güven veren cevaplar ver.
+Konuşurken güler yüzlü ol.
+Cümlelerin sonunda veya uygun yerlerde
+1–2 adet sade emoji kullan.
+profesyonel ve samimi kal.
+Tercih edilen emojiler: 😊 👍 📦 ✅ 📞
 
 ÜRÜN:
 Mavi Yengeç Macunu 600 gram erkekler için cinsel performans arttırıcı bir üründür.
@@ -26,11 +31,15 @@ Erken boşalma, sertleşme ve isteksizlik sorunlarını çözer.
 Yan etkisi yoktur.
 
 PAKET SEÇENEKLERİ:
-1. SEÇENEK: 1 Kavanoz - 699 TL
-2. SEÇENEK: 2 Kavanoz + Krem + Damla - 1000 TL
-3. SEÇENEK: 4 Kavanoz + Krem + Damla - 1600 TL
+1. SEÇENEK: 1 Kavanoz 600 GRAM - 699 TL
+2. SEÇENEK: 2 Kavanoz 600 GRAM + Krem + Damla HEDİYE - 1000 TL
+3. SEÇENEK: 4 Kavanoz 600 GRAM + Krem + Damla -HEDİYE  1600 TL
 
 TESLİMAT: Kapıda ödeme, Ücretsiz kargo.
+PTT VE ARAS KARGO ŞUBELERİNE TESLİM EDİLEBİLİR
+SADECE PTT VE ARAS KARGO İLE ÇALISIYORUZ
+KAPIDA NAKİT VE KAPIDA KREDİ KARTI İLE ÖDEME YAPILIR
+PTT İLE KAPIDA SADECE NAKİT ÖDEMESİ YAPILIR KREDİ KARTI İLE ÖDEME YOK
 `;
 
 const SUPPORT_PROMPT = `
@@ -39,6 +48,11 @@ FİYAT: Sabittir.
 KARGO SÜRESİ: 4-5 gün.
 KULLANIM: İlişkiden 30-40 dk önce 1 tatlı kaşığı.
 İLETİŞİM: +90 546 921 55 88
+Müşteriyle empati kur.
+Nazik ve sakin bir dil kullan.
+Uygun yerlerde 1–2 adet emoji ekle.
+Sorun yaşayan müşteriler için
+anlayış gösteren emojiler kullan: 🙏 😔 ✅
 `;
 
 const FULL_KNOWLEDGE = SALES_PROMPT + "\n" + SUPPORT_PROMPT;
@@ -114,9 +128,9 @@ app.post('/webhook', async (req, res) => {
       userId,
       `Hangi paketi istiyorsunuz?
 
-1️⃣ 1 Kavanoz – 699 TL
-2️⃣ 2 Kavanoz + Krem + Damla – 1000 TL
-3️⃣ 4 Kavanoz + Krem + Damla – 1600 TL
+1️⃣ 1 Kavanoz –600 GRAM - 699 TL
+2️⃣ 2 Kavanoz -600 GRAM + Krem + Damla- HEDİYELİ – 1000 TL
+3️⃣ 4 Kavanoz -600 GRAM + Krem + Damla –HEDİYELİ - 1600 TL
 
 Lütfen paketi seçiniz (1, 2 veya 3)`
     );
@@ -132,15 +146,15 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
       if (extracted.telefon) user.telefon = extracted.telefon;
       if (extracted.adres) user.adres = extracted.adres;
       if (extracted.paket) {
-           user.paket = extracted.paket === '1' ? '1 Kavanoz – 699 TL' :
-                        extracted.paket === '2' ? '2 Kavanoz + Krem + Damla – 1000 TL' :
-                        '4 Kavanoz + Krem + Damla – 1600 TL';
+           user.paket = extracted.paket === '1' ? '1 Kavanoz –600 GRAM - 699 TL' :
+                        extracted.paket === '2' ? '2 Kavanoz -600 GRAM + Krem + Damla- HEDİYELİ – 1000 TL' :
+                        '4 Kavanoz -600 GRAM + Krem + Damla –HEDİYELİ - 1600 TL';
       }
 
       if (user.step === 'paket' && ['1', '2', '3'].includes(text)) {
-           user.paket = text === '1' ? '1 Kavanoz – 699 TL' :
-                        text === '2' ? '2 Kavanoz + Krem + Damla – 1000 TL' :
-                        '4 Kavanoz + Krem + Damla – 1600 TL';
+           user.paket = text === '1' ? '1 Kavanoz –600 GRAM - 699 TL' :
+                        text === '2' ? '2 Kavanoz -600 GRAM + Krem + Damla- HEDİYELİ – 1000 TL' :
+                        '4 Kavanoz -600 GRAM + Krem + Damla –HEDİYELİ - 1600 TL';
       }
 
       // EKSİK BİLGİ KONTROLÜ
