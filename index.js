@@ -117,21 +117,17 @@ function detectPackage(text) {
   return null;
 }
 
-async function saveOrderToSheet(order) {
-  try {
-    await axios.post(
-      'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
-      null,
-      {
-        params: {
-          isim: order.isim,
-          telefon: order.telefon,
-          adres: order.adres,
-          paket: order.paket,
-          userId: order.userId,
-          tarih: order.tarih
-        }
-      }
+async function sendToSheet(order) {
+  await axios.post(
+    'https://script.google.com/macros/s/AKfycbxFM_LfxPHyWo1fI5g_nGZckMUOtKWqsOftIsvcjLmVSLfp9TEc_6aErUoyevuPVfIa/exec',
+    {
+      name: order.isim,
+      phone: order.telefon,
+      address: order.adres,
+      package: order.paket
+    }
+  );
+}
     );
 
     console.log('✅ Google Sheet’e gönderildi');
