@@ -134,7 +134,18 @@ app.post('/webhook', async (req, res) => {
   }
 
   // ===== SİPARİŞ BAŞLATMA =====
-  if (text.includes('sipariş') && user.step === 'bos') {
+  const orderIntentKeywords = [
+  'sipariş vermek istiyorum',
+  'satın almak istiyorum',
+  'sipariş oluştur',
+  'sipariş ver',
+  'almak istiyorum'
+];
+
+if (
+  orderIntentKeywords.some(k => text.includes(k)) &&
+  user.step === 'bos'
+) {
     user.step = 'paket';
     await sendMessage(
       userId,
