@@ -126,7 +126,6 @@ async function sendToSheet(order) {
       address: order.adres,
       package: order.paket
     }
-  );
 }
     );
 
