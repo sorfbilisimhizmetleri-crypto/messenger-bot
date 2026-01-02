@@ -12,7 +12,7 @@ app.use(bodyParser.json());
 const users = {};
 
 // =======================
-// 🟢 SATIŞ PROMPT
+// 🟢 SATIŞ PROMPT (Mevcut)
 // =======================
 const SALES_PROMPT = `
 Sen MAVİ YENGEÇ MACUNU satan profesyonel bir satış danışmanısın.
@@ -37,7 +37,7 @@ Kullanıcıyı nazikçe siparişe yönlendir.
 `;
 
 // =======================
-// 🔵 DESTEK + İKNA PROMPT
+// 🔵 DESTEK + İKNA PROMPT (Mevcut)
 // =======================
 const SUPPORT_PROMPT = `
 Sen MAVİ YENGEÇ MACUNU müşteri destek temsilcisisin.
@@ -108,6 +108,12 @@ Web: https://form.jotform.com/253606614494966
 `;
 
 // =======================
+// 🟡 YENİ: DOĞRULAMA PROMPTU (Botun aklını karıştırmamak için)
+// =======================
+// Hem satış hem destek bilgilerini birleştiriyoruz ki soru gelirse bilsin.
+const FULL_KNOWLEDGE = SALES_PROMPT + "\n" + SUPPORT_PROMPT;
+
+// =======================
 app.get('/', (req, res) => {
   res.send('BOT ÇALIŞIYOR 🚀');
 });
@@ -142,7 +148,14 @@ app.post('/webhook', async (req, res) => {
   const user = users[userId];
 
   // ===== SİPARİŞ BAŞLAT =====
-  if (text.includes('sipariş')) {
+  // Kullanıcı herhangi bir aşamada "iptal" veya "başa dön" derse sıfırla
+  if (text === 'iptal' || text === 'başa dön') {
+      users[userId] = { step: 'bos' };
+      await sendMessage(userId, "Sipariş işlemi iptal edildi. Nasıl yardımcı olabilirim?");
+      return res.sendStatus(200);
+  }
+
+  if (text.includes('sipariş') && user.step === 'bos') {
     user.step = 'paket';
     return sendMessage(
       userId,
@@ -156,7 +169,11 @@ Lütfen 1 / 2 / 3 yazınız`
     );
   }
 
+  // ==========================================
+  // 1. ADIM: PAKET SEÇİMİ
+  // ==========================================
   if (user.step === 'paket') {
+    // Önce doğrudan 1, 2, 3 kontrolü yapalım (Hız için)
     if (['1', '2', '3'].includes(text)) {
       user.paket =
         text === '1'
@@ -167,29 +184,70 @@ Lütfen 1 / 2 / 3 yazınız`
       user.step = 'isim';
       return sendMessage(userId, 'Ad Soyad alabilir miyim?');
     }
-    return sendMessage(userId, 'Lütfen 1, 2 veya 3 yazınız.');
+
+    // Eğer 1,2,3 değilse, soru soruyor olabilir. AI'ya soralım.
+    const analysis = await analyzeInput(message, 'PAKET SEÇİMİ (1, 2 veya 3)');
+    
+    if (analysis.isValid) {
+        // Eğer kullanıcı "birinci paket olsun" gibi yazıyla yazdıysa burayı geliştirebiliriz
+        // ama şimdilik soru cevaplayıp tekrar isteyelim.
+        return sendMessage(userId, "Lütfen paketi numara olarak (1, 2 veya 3) yazar mısınız?"); 
+    } else {
+        // Soru sormuş, cevabı ver ve tekrar paketi sor
+        return sendMessage(userId, analysis.reply + "\n\n(Siparişe devam etmek için lütfen 1, 2 veya 3 yazınız.)");
+    }
   }
 
+  // ==========================================
+  // 2. ADIM: İSİM ALMA
+  // ==========================================
   if (user.step === 'isim') {
-    user.isim = message;
-    user.step = 'telefon';
-    return sendMessage(userId, 'Telefon numaranızı yazar mısınız?');
+    // AI ile kontrol et: Bu bir isim mi yoksa soru mu?
+    const analysis = await analyzeInput(message, 'AD SOYAD');
+
+    if (analysis.isValid) {
+        user.isim = message; // Orijinal mesajı kaydet
+        user.step = 'telefon';
+        return sendMessage(userId, 'Telefon numaranızı yazar mısınız?');
+    } else {
+        // Soru sormuş, cevabı ver ama adımı ilerletme
+        return sendMessage(userId, analysis.reply + "\n\n(Siparişe devam etmek için lütfen Ad Soyad yazınız.)");
+    }
   }
 
+  // ==========================================
+  // 3. ADIM: TELEFON ALMA
+  // ==========================================
   if (user.step === 'telefon') {
-    user.telefon = message;
-    user.step = 'adres';
-    return sendMessage(userId, 'Adresinizi yazar mısınız?');
+    const analysis = await analyzeInput(message, 'TELEFON NUMARASI');
+
+    if (analysis.isValid) {
+        user.telefon = message;
+        user.step = 'adres';
+        return sendMessage(userId, 'Açık adresinizi yazar mısınız?');
+    } else {
+        return sendMessage(userId, analysis.reply + "\n\n(Siparişe devam etmek için lütfen telefon numaranızı yazınız.)");
+    }
   }
 
+  // ==========================================
+  // 4. ADIM: ADRES ALMA
+  // ==========================================
   if (user.step === 'adres') {
-    user.adres = message;
-    user.step = 'bitti';
-    await sendToSheet(user);
-    console.log('YENİ SİPARİŞ:', user);
-    return sendMessage(
-      userId,
-      `✅ Siparişiniz alınmıştır
+    const analysis = await analyzeInput(message, 'AÇIK ADRES');
+
+    if (analysis.isValid) {
+        user.adres = message;
+        user.step = 'bitti';
+        await sendToSheet(user);
+        console.log('YENİ SİPARİŞ:', user);
+        
+        // Siparişi sıfırla ki yeni işlem yapabilsin
+        users[userId] = { step: 'bos' }; 
+
+        return sendMessage(
+        userId,
+        `✅ Siparişiniz alınmıştır
 
 📦 ${user.paket}
 👤 ${user.isim}
@@ -198,27 +256,84 @@ Lütfen 1 / 2 / 3 yazınız`
 
 🚚 Ücretsiz kargo
 💵 Kapıda ödeme`
-    );
+        );
+    } else {
+        return sendMessage(userId, analysis.reply + "\n\n(Siparişi tamamlamak için lütfen adresinizi yazınız.)");
+    }
   }
 
-  // ===== DESTEK Mİ? =====
-  const supportKeywords = [
-    'kırık','eksik','bozuk','şikayet','iade','geri',
-    'kargo','gelmedi','gecikti','fiyat','yüksek',
-    'sahte','işe yarıyor','yan etki','ulaşamıyorum'
-  ];
-
-  const isSupport = supportKeywords.some(k => text.includes(k));
-
-  const reply = await askGPT(
-    message,
-    isSupport ? SUPPORT_PROMPT : SALES_PROMPT
-  );
-
-  await sendMessage(userId, reply);
+  // ===== NORMAL SOHBET / DESTEK (Sipariş dışı) =====
+  if (user.step === 'bos') {
+    const supportKeywords = [
+        'kırık','eksik','bozuk','şikayet','iade','geri',
+        'kargo','gelmedi','gecikti','fiyat','yüksek',
+        'sahte','işe yarıyor','yan etki','ulaşamıyorum', 'nasıl'
+    ];
+    const isSupport = supportKeywords.some(k => text.includes(k));
+    const reply = await askGPT(message, isSupport ? SUPPORT_PROMPT : SALES_PROMPT);
+    await sendMessage(userId, reply);
+  }
+  
   res.sendStatus(200);
 });
 
+// =======================
+// YENİ FONKSİYON: GİRDİ ANALİZİ
+// =======================
+async function analyzeInput(userMessage, expectedType) {
+    // Bu prompt GPT'ye şunu söyler: "Kullanıcıdan X istedim. Bana verdiği cevap X mi yoksa soru mu?"
+    const VALIDATION_SYSTEM_PROMPT = `
+${FULL_KNOWLEDGE}
+
+GÖREVİN:
+Sen bir sipariş asistanısın. Kullanıcıdan şu bilgiyi istedin: ${expectedType}.
+Kullanıcının son mesajı aşağıdadır.
+
+1. Eğer kullanıcı sadece istenen bilgiyi (${expectedType}) verdiyse, sadece ve sadece şu kelimeyi yaz: [ONAY]
+2. Eğer kullanıcı soru soruyorsa, ürün hakkında konuşuyorsa veya alakasız bir şey dediyse: Soruyu yukarıdaki bilgilere göre nazikçe cevapla. Asla [ONAY] yazma.
+
+Önemli: Eğer cevap bir soruysa, cevabın içine sipariş detaylarını (paket seçimi vs) karıştırma, sadece soruyu cevapla.
+`;
+
+    try {
+        const response = await axios.post(
+            'https://api.openai.com/v1/chat/completions',
+            {
+                model: 'gpt-4o-mini',
+                temperature: 0,
+                messages: [
+                    { role: 'system', content: VALIDATION_SYSTEM_PROMPT },
+                    { role: 'user', content: userMessage }
+                ]
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.OPENAI_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const content = response.data.choices[0].message.content;
+
+        // Eğer GPT "[ONAY]" dediyse bu geçerli bir veridir.
+        if (content.includes('[ONAY]')) {
+            return { isValid: true, reply: null };
+        } else {
+            // Değilse, GPT'nin ürettiği cevabı döndür.
+            return { isValid: false, reply: content };
+        }
+
+    } catch (error) {
+        console.error("AI Hatası:", error);
+        // Hata durumunda akışı bozmamak için geçerli sayabilir veya varsayılan hata mesajı dönebilirsin
+        // Şimdilik güvenli mod: Soru farz et.
+        return { isValid: false, reply: "Şu an yanıt veremiyorum, lütfen tekrar dener misiniz?" };
+    }
+}
+
+// =======================
+// MEVCUT GPT FONKSİYONU
 // =======================
 async function askGPT(message, prompt) {
   const response = await axios.post(
@@ -244,13 +359,17 @@ async function askGPT(message, prompt) {
 
 // =======================
 async function sendMessage(userId, text) {
-  await axios.post(
-    `https://graph.facebook.com/v18.0/me/messages?access_token=${process.env.PAGE_TOKEN}`,
-    {
-      recipient: { id: userId },
-      message: { text }
-    }
-  );
+  try {
+      await axios.post(
+        `https://graph.facebook.com/v18.0/me/messages?access_token=${process.env.PAGE_TOKEN}`,
+        {
+          recipient: { id: userId },
+          message: { text }
+        }
+      );
+  } catch (e) {
+      console.error("Mesaj gönderme hatası:", e.response ? e.response.data : e.message);
+  }
 }
 
 // =======================
