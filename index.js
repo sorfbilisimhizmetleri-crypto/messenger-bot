@@ -12,7 +12,7 @@ app.use(bodyParser.json());
 const users = {};
 
 // =======================
-// 🟢 SATIŞ PROMPT (Mevcut)
+// 🟢 BİLGİ BANKASI
 // =======================
 const SALES_PROMPT = `
 Sen MAVİ YENGEÇ MACUNU satan profesyonel bir satış danışmanısın.
@@ -24,10 +24,10 @@ Performansı 12 kat artırır.
 Erken boşalma, sertleşme ve isteksizlik sorunlarını çözer.
 Yan etkisi yoktur.
 
-FİYATLAR SABİTTİR (İNDİRİM YOKTUR):
-1 Kavanoz: 699 TL
-2 Kavanoz + Krem + Damla: 1000 TL
-4 Kavanoz + Krem + Damla: 1600 TL
+PAKET SEÇENEKLERİ:
+1. SEÇENEK: 1 Kavanoz - 699 TL
+2. SEÇENEK: 2 Kavanoz + Krem + Damla - 1000 TL
+3. SEÇENEK: 4 Kavanoz + Krem + Damla - 1600 TL
 
 TESLİMAT:
 Kapıda ödeme
@@ -36,81 +36,20 @@ Kapıda ödeme
 Kullanıcıyı nazikçe siparişe yönlendir.
 `;
 
-// =======================
-// 🔵 DESTEK + İKNA PROMPT (Mevcut)
-// =======================
 const SUPPORT_PROMPT = `
 Sen MAVİ YENGEÇ MACUNU müşteri destek temsilcisisin.
 Sakin, anlayışlı ve çözüm odaklı konuş.
 
 HAZIR BİLGİLER:
-
-FİYAT NEDEN YÜKSEK:
-Kargo maliyetleri %50 zamlandı.
-Cam şişe ambalaj %35 zamlandı.
-Ham madde %17 zamlandı.
-Personel maliyetleri %28 arttı.
-Reklam maliyetleri çok yüksek.
-Buna rağmen fiyatlar olabildiğince uygun tutulmaktadır.
-
-WHATSAPP / TELEFON ULAŞILAMIYORSA:
-Cumartesi, pazar ve resmi tatillerde ekip çalışmıyor.
-Mesai saatlerinde yoğunluk varsa mutlaka geri dönüş yapılır.
-
-KIRIK / EKSİK ÜRÜN:
-Özür dile.
-Şu bilgileri iste:
-- Ad Soyad
-- Telefon
-- Kaç adet alındı
-- Kaç adet geldi / ne eksik
-
-KARGO GELMEDİYSE:
-Yoğunlukta teslimat 4–5 gün sürebilir.
-Bu süre aşılırsa:
-- Ad Soyad
-- Telefon
-- Sipariş tarihi
-iste ve ekibe ileteceğini söyle.
-
-İADE:
-İade için şu bilgileri iste:
-- Ad Soyad
-- Telefon
-- İade sebebi
-- IBAN
-
-KULLANIM TALİMATI:
-İlişkiden 30–40 dakika önce
-1 tatlı kaşığı
-Tok karnına kullanılır.
-
-KREM & DAMLA:
-Krem: Boşalma süresini 30–35 dakika uzatır, 2 cm büyüme sağlar.
-Damla: Bayan azdırıcıdır, 1–2 damla içeceğe eklenir.
-
-SAHTE Mİ:
-Ürün sahte değildir.
-Tarım ve Orman Bakanlığı onaylıdır.
-Türk Patent ve Marka Kurumu tarafından tescillidir.
-
-İŞE YARIYOR MU:
-%100 etkilidir.
-12 saat etki sağlar.
-30 dakikada etki gösterir.
-
-İNDİRİM:
-İndirim yoktur, fiyatlar sabittir.
-
-İLETİŞİM:
-WhatsApp / Telefon: +90 546 921 55 88
-Web: https://form.jotform.com/253606614494966
+FİYAT: Kargo ve hammadde maliyetleri nedeniyle sabittir.
+KARGO SÜRESİ: Yoğunlukta 4-5 gün.
+KULLANIM: İlişkiden 30-40 dk önce 1 tatlı kaşığı, tok karnına.
+KREM: Geciktirici ve büyütücü. 
+DAMLA: Bayan istek arttırıcı.
+İLETİŞİM: +90 546 921 55 88
 `;
 
-// =======================
-// 🟡 YENİ: DOĞRULAMA PROMPTU (Botun aklını karıştırmamak için)
-// =======================
-// Hem satış hem destek bilgilerini birleştiriyoruz ki soru gelirse bilsin.
+// Bilgileri birleştiriyoruz
 const FULL_KNOWLEDGE = SALES_PROMPT + "\n" + SUPPORT_PROMPT;
 
 // =======================
@@ -147,14 +86,14 @@ app.post('/webhook', async (req, res) => {
   if (!users[userId]) users[userId] = { step: 'bos' };
   const user = users[userId];
 
-  // ===== SİPARİŞ BAŞLAT =====
-  // Kullanıcı herhangi bir aşamada "iptal" veya "başa dön" derse sıfırla
+  // ===== İPTAL / BAŞA DÖN =====
   if (text === 'iptal' || text === 'başa dön') {
       users[userId] = { step: 'bos' };
       await sendMessage(userId, "Sipariş işlemi iptal edildi. Nasıl yardımcı olabilirim?");
       return res.sendStatus(200);
   }
 
+  // ===== SİPARİŞ BAŞLAT =====
   if (text.includes('sipariş') && user.step === 'bos') {
     user.step = 'paket';
     return sendMessage(
@@ -165,36 +104,41 @@ app.post('/webhook', async (req, res) => {
 2️⃣ 2 Kavanoz + Krem + Damla – 1000 TL
 3️⃣ 4 Kavanoz + Krem + Damla – 1600 TL
 
-Lütfen 1 / 2 / 3 yazınız`
+Lütfen paketi seçiniz (1, 2 veya 3)`
     );
   }
 
   // ==========================================
-  // 1. ADIM: PAKET SEÇİMİ
+  // 1. ADIM: PAKET SEÇİMİ (GÜNCELLENDİ 🔥)
   // ==========================================
   if (user.step === 'paket') {
-    // Önce doğrudan 1, 2, 3 kontrolü yapalım (Hız için)
-    if (['1', '2', '3'].includes(text)) {
-      user.paket =
-        text === '1'
-          ? '1 Kavanoz – 699 TL'
-          : text === '2'
-          ? '2 Kavanoz + Krem + Damla – 1000 TL'
-          : '4 Kavanoz + Krem + Damla – 1600 TL';
-      user.step = 'isim';
-      return sendMessage(userId, 'Ad Soyad alabilir miyim?');
+    let selectedPackage = null;
+
+    // A) Hızlı Kontrol: Kullanıcı direkt rakam yazdıysa
+    if (text === '1' || text === '2' || text === '3') {
+        selectedPackage = text;
+    } 
+    // B) Akıllı Kontrol: "1 kavanoz istiyorum", "ikili set" vb. dediyse
+    else {
+        const aiAnalysis = await analyzePackageIntent(message);
+        
+        if (aiAnalysis.selection) {
+            selectedPackage = aiAnalysis.selection;
+        } else {
+            // Soru sorduysa cevabını ver ve tekrar sor
+            return sendMessage(userId, aiAnalysis.reply + "\n\n(Siparişe devam etmek için lütfen 1, 2 veya 3. paketi seçtiğinizi belirtiniz.)");
+        }
     }
 
-    // Eğer 1,2,3 değilse, soru soruyor olabilir. AI'ya soralım.
-    const analysis = await analyzeInput(message, 'PAKET SEÇİMİ (1, 2 veya 3)');
-    
-    if (analysis.isValid) {
-        // Eğer kullanıcı "birinci paket olsun" gibi yazıyla yazdıysa burayı geliştirebiliriz
-        // ama şimdilik soru cevaplayıp tekrar isteyelim.
-        return sendMessage(userId, "Lütfen paketi numara olarak (1, 2 veya 3) yazar mısınız?"); 
-    } else {
-        // Soru sormuş, cevabı ver ve tekrar paketi sor
-        return sendMessage(userId, analysis.reply + "\n\n(Siparişe devam etmek için lütfen 1, 2 veya 3 yazınız.)");
+    // Seçim yapıldıysa kaydet ve ilerle
+    if (selectedPackage) {
+      user.paket =
+        selectedPackage === '1' ? '1 Kavanoz – 699 TL' :
+        selectedPackage === '2' ? '2 Kavanoz + Krem + Damla – 1000 TL' :
+        '4 Kavanoz + Krem + Damla – 1600 TL';
+      
+      user.step = 'isim';
+      return sendMessage(userId, `✅ ${user.paket} seçildi.\n\nAd Soyad alabilir miyim?`);
     }
   }
 
@@ -202,15 +146,13 @@ Lütfen 1 / 2 / 3 yazınız`
   // 2. ADIM: İSİM ALMA
   // ==========================================
   if (user.step === 'isim') {
-    // AI ile kontrol et: Bu bir isim mi yoksa soru mu?
     const analysis = await analyzeInput(message, 'AD SOYAD');
 
     if (analysis.isValid) {
-        user.isim = message; // Orijinal mesajı kaydet
+        user.isim = message;
         user.step = 'telefon';
         return sendMessage(userId, 'Telefon numaranızı yazar mısınız?');
     } else {
-        // Soru sormuş, cevabı ver ama adımı ilerletme
         return sendMessage(userId, analysis.reply + "\n\n(Siparişe devam etmek için lütfen Ad Soyad yazınız.)");
     }
   }
@@ -242,7 +184,7 @@ Lütfen 1 / 2 / 3 yazınız`
         await sendToSheet(user);
         console.log('YENİ SİPARİŞ:', user);
         
-        // Siparişi sıfırla ki yeni işlem yapabilsin
+        // Kullanıcıyı sıfırla
         users[userId] = { step: 'bos' }; 
 
         return sendMessage(
@@ -262,13 +204,9 @@ Lütfen 1 / 2 / 3 yazınız`
     }
   }
 
-  // ===== NORMAL SOHBET / DESTEK (Sipariş dışı) =====
+  // ===== NORMAL SOHBET / DESTEK =====
   if (user.step === 'bos') {
-    const supportKeywords = [
-        'kırık','eksik','bozuk','şikayet','iade','geri',
-        'kargo','gelmedi','gecikti','fiyat','yüksek',
-        'sahte','işe yarıyor','yan etki','ulaşamıyorum', 'nasıl'
-    ];
+    const supportKeywords = ['nasıl','kırık','eksik','kargo','fiyat','neden','iade','iletişim'];
     const isSupport = supportKeywords.some(k => text.includes(k));
     const reply = await askGPT(message, isSupport ? SUPPORT_PROMPT : SALES_PROMPT);
     await sendMessage(userId, reply);
@@ -278,83 +216,99 @@ Lütfen 1 / 2 / 3 yazınız`
 });
 
 // =======================
-// YENİ FONKSİYON: GİRDİ ANALİZİ
+// 🧠 1. YENİ FONKSİYON: PAKET NİYET ANALİZİ
+// =======================
+async function analyzePackageIntent(userMessage) {
+    const PROMPT = `
+${FULL_KNOWLEDGE}
+
+GÖREV:
+Kullanıcı şu an paket seçimi adımında.
+Seçenekler:
+1 -> 1 Kavanoz (1 adet, tek, bir tane vb.)
+2 -> 2 Kavanoz (2 adet, ikili set, avantajlı vb.)
+3 -> 4 Kavanoz (4 adet, süper set, 3. seçenek vb.)
+
+Kullanıcının mesajı: "${userMessage}"
+
+KURALLAR:
+1. Eğer kullanıcı satın almak istediği miktarı ima ediyorsa veya açıkça söylüyorsa, sadece paket numarasını kod olarak döndür: [SECIM:1] veya [SECIM:2] veya [SECIM:3]
+2. Eğer kullanıcı soru soruyorsa (örn: "Kargo ne kadar?", "Yan etkisi var mı?"), soruyu cevapla. Asla [SECIM:X] kodu verme.
+`;
+
+    try {
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-4o-mini',
+            temperature: 0,
+            messages: [{ role: 'system', content: PROMPT }]
+        }, {
+            headers: { Authorization: `Bearer ${process.env.OPENAI_KEY}` }
+        });
+
+        const content = response.data.choices[0].message.content;
+
+        if (content.includes('[SECIM:1]')) return { selection: '1', reply: null };
+        if (content.includes('[SECIM:2]')) return { selection: '2', reply: null };
+        if (content.includes('[SECIM:3]')) return { selection: '3', reply: null };
+
+        return { selection: null, reply: content };
+
+    } catch (e) {
+        console.error("Paket analiz hatası:", e.message);
+        return { selection: null, reply: "Anlayamadım, lütfen 1, 2 veya 3 yazınız." };
+    }
+}
+
+// =======================
+// 🧠 2. MEVCUT FONKSİYON: GENEL GİRDİ ANALİZİ
 // =======================
 async function analyzeInput(userMessage, expectedType) {
-    // Bu prompt GPT'ye şunu söyler: "Kullanıcıdan X istedim. Bana verdiği cevap X mi yoksa soru mu?"
     const VALIDATION_SYSTEM_PROMPT = `
 ${FULL_KNOWLEDGE}
 
 GÖREVİN:
 Sen bir sipariş asistanısın. Kullanıcıdan şu bilgiyi istedin: ${expectedType}.
-Kullanıcının son mesajı aşağıdadır.
+Kullanıcının mesajı: "${userMessage}"
 
-1. Eğer kullanıcı sadece istenen bilgiyi (${expectedType}) verdiyse, sadece ve sadece şu kelimeyi yaz: [ONAY]
-2. Eğer kullanıcı soru soruyorsa, ürün hakkında konuşuyorsa veya alakasız bir şey dediyse: Soruyu yukarıdaki bilgilere göre nazikçe cevapla. Asla [ONAY] yazma.
-
-Önemli: Eğer cevap bir soruysa, cevabın içine sipariş detaylarını (paket seçimi vs) karıştırma, sadece soruyu cevapla.
+1. Eğer kullanıcı sadece istenen bilgiyi (${expectedType}) verdiyse, sadece şunu yaz: [ONAY]
+2. Eğer kullanıcı soru soruyorsa, soruyu nazikçe cevapla. Asla [ONAY] yazma.
 `;
 
     try {
-        const response = await axios.post(
-            'https://api.openai.com/v1/chat/completions',
-            {
-                model: 'gpt-4o-mini',
-                temperature: 0,
-                messages: [
-                    { role: 'system', content: VALIDATION_SYSTEM_PROMPT },
-                    { role: 'user', content: userMessage }
-                ]
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${process.env.OPENAI_KEY}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-4o-mini',
+            temperature: 0,
+            messages: [{ role: 'system', content: VALIDATION_SYSTEM_PROMPT }]
+        }, {
+            headers: { Authorization: `Bearer ${process.env.OPENAI_KEY}` }
+        });
 
         const content = response.data.choices[0].message.content;
-
-        // Eğer GPT "[ONAY]" dediyse bu geçerli bir veridir.
-        if (content.includes('[ONAY]')) {
-            return { isValid: true, reply: null };
-        } else {
-            // Değilse, GPT'nin ürettiği cevabı döndür.
-            return { isValid: false, reply: content };
-        }
+        if (content.includes('[ONAY]')) return { isValid: true, reply: null };
+        return { isValid: false, reply: content };
 
     } catch (error) {
-        console.error("AI Hatası:", error);
-        // Hata durumunda akışı bozmamak için geçerli sayabilir veya varsayılan hata mesajı dönebilirsin
-        // Şimdilik güvenli mod: Soru farz et.
-        return { isValid: false, reply: "Şu an yanıt veremiyorum, lütfen tekrar dener misiniz?" };
+        return { isValid: false, reply: "Hata oluştu." };
     }
 }
 
 // =======================
-// MEVCUT GPT FONKSİYONU
+// STANDART GPT SOHBET
 // =======================
 async function askGPT(message, prompt) {
-  const response = await axios.post(
-    'https://api.openai.com/v1/chat/completions',
-    {
+  try {
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o-mini',
       temperature: 0,
       messages: [
         { role: 'system', content: prompt },
         { role: 'user', content: message }
       ]
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-
-  return response.data.choices[0].message.content;
+    }, {
+      headers: { Authorization: `Bearer ${process.env.OPENAI_KEY}` }
+    });
+    return response.data.choices[0].message.content;
+  } catch (e) { return "Cevap verilemiyor."; }
 }
 
 // =======================
@@ -362,14 +316,9 @@ async function sendMessage(userId, text) {
   try {
       await axios.post(
         `https://graph.facebook.com/v18.0/me/messages?access_token=${process.env.PAGE_TOKEN}`,
-        {
-          recipient: { id: userId },
-          message: { text }
-        }
+        { recipient: { id: userId }, message: { text } }
       );
-  } catch (e) {
-      console.error("Mesaj gönderme hatası:", e.response ? e.response.data : e.message);
-  }
+  } catch (e) { console.error("Mesaj hatası:", e.message); }
 }
 
 // =======================
@@ -386,9 +335,7 @@ async function sendToSheet(order) {
         package: order.paket
       }
     );
-  } catch (err) {
-    console.error('Sheets gönderme hatası:', err.message);
-  }
+  } catch (err) { console.error('Sheets hatası:', err.message); }
 }
 
 // =======================
