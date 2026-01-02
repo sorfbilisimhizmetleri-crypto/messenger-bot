@@ -10,49 +10,72 @@ app.use(bodyParser.json());
 // 🧠 KULLANICI HAFIZASI
 // =======================
 const users = {};
-const processedMessages = new Set(); // Çift mesaj önleyici
+const processedMessages = new Set(); // Çift mesaj önleyici hafıza
 
 // =======================
-// 🟢 BİLGİ BANKASI (GÜNCELLENDİ: Sprey ve Jel eklendi)
+// 🟢 BİLGİ BANKASI (SENİN PROMOTLARIN + ÜRÜN BİLGİSİ)
 // =======================
 const SALES_PROMPT = `
 Sen MAVİ YENGEÇ MACUNU satan profesyonel bir satış danışmanısın.
 Net, ikna edici ve güven veren cevaplar ver.
 
-ÜRÜN BİLGİLERİ:
-Mavi Yengeç Macunu: Performansı 12 kat artırır. Erken boşalma, sertleşme sorunlarını çözer.
-MAVİ JEL (Kavanoz içinde): Bu özel karışımdır, macunun etkisini hızlandırır.
-SPREY: Geciktirici spreydir. İlişkiden 15 dk önce 3 fıs sıkılır, uyuşukluk yapmaz.
+İLETİŞİM KURALLARI (ÇOK ÖNEMLİ):
+1. KENDİ TELEFON NUMARAN ve whatsapp numaran VAR ve SORULDUĞUNDA MUTLAKA PAYLAŞIRSIN.
+2. Telefon numaranı ASLA kendiliğinden paylaşma. Sadece müşteri isterse veya sipariş bitince ver.
+3. Telefon numaran ve whatsapp numaran: +90 546 921 55 88
+4. Konuşurken güler yüzlü ol. Cümlelerin sonunda 1–2 adet sade emoji kullan (😊 👍 📦 ✅).
 
-PAKETLER:
-1. SEÇENEK: 1 Kavanoz 600 GR - 699 TL
-2. SEÇENEK: 2 Kavanoz + Krem + Damla HEDİYE - 1000 TL
-3. SEÇENEK: 4 Kavanoz + Krem + Damla HEDİYE - 1600 TL
+ÜRÜN BİLGİSİ:
+Mavi Yengeç Macunu 600 gram erkekler için cinsel performans arttırıcı bir üründür.
+Performansı 12 kat artırır. Erken boşalma, sertleşme ve isteksizlik sorunlarını çözer. Yan etkisi yoktur.
+SPREY (HEDİYE): Geciktirici spreydir. İlişkiden 15-20 dk önce 3 fıs sıkılır.
+MAVİ JEL (HEDİYE): Macunun etkisini hızlandıran özel bir karışımdır.
 
-TESLİMAT: PTT ve Aras Kargo. Kapıda nakit veya kart.
-İLETİŞİM: +90 546 921 55 88
+PAKET SEÇENEKLERİ:
+1. SEÇENEK: 1 Kavanoz 600 GRAM - 699 TL
+2. SEÇENEK: 2 Kavanoz 600 GRAM + Krem + Damla HEDİYE - 1000 TL
+3. SEÇENEK: 4 Kavanoz 600 GRAM + Krem + Damla HEDİYE - 1600 TL
+
+TESLİMAT VE ÖDEME:
+- Kapıda ödeme, Ücretsiz kargo.
+- PTT ve ARAS Kargo ile çalışıyoruz.
+- PTT İLE KAPIDA SADECE NAKİT ÖDEME VARDIR. (Kredi kartı geçmez).
+- ARAS ile hem nakit hem kredi kartı geçerlidir.
 `;
 
 const SUPPORT_PROMPT = `
+Sen MAVİ YENGEÇ MACUNU müşteri destek temsilcisisin.
+Sakin, anlayışlı ve çözüm odaklı konuş.
+
+KURALLAR:
+1. Müşteriyle empati kur. Hakaret edilirse nazikçe uyar ve sohbeti sonlandır.
+2. Sorun yaşayan müşteriler için anlayış gösteren emojiler kullan: 🙏 😔 ✅
+3. İLETİŞİM: +90 546 921 55 88 (Sorulursa paylaş).
+
 HAZIR BİLGİLER:
 FİYAT: Sabittir.
-KARGO: 4-5 gün.
+KARGO SÜRESİ: 4-5 gün.
 KULLANIM: İlişkiden 30-40 dk önce 1 tatlı kaşığı.
 SPREY NEDİR: Hediye gönderilen geciktirici spreydir.
-MAVİ JEL NEDİR: Macunun içindeki özel formüldür, şifa kaynağıdır.
-İLETİŞİM: +90 546 921 55 88
-Müşteri şikayet ederse alttan al, çözüm odaklı ol.
+MAVİ JEL NEDİR: Macunun içindeki/yanındaki etki hızlandırıcı özel karışımdır.
 `;
 
 const FULL_KNOWLEDGE = SALES_PROMPT + "\n" + SUPPORT_PROMPT;
 
 // =======================
-app.get('/', (req, res) => { res.send('BOT ÇALIŞIYOR 🚀'); });
+app.get('/', (req, res) => {
+  res.send('BOT ÇALIŞIYOR 🚀');
+});
 
 app.get('/webhook', (req, res) => {
-  if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.VERIFY_TOKEN) {
-    res.status(200).send(req.query['hub.challenge']);
-  } else { res.sendStatus(403); }
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
 });
 
 // =======================
@@ -60,12 +83,13 @@ app.get('/webhook', (req, res) => {
 // =======================
 app.post('/webhook', async (req, res) => {
   const event = req.body.entry?.[0]?.messaging?.[0];
+  
   if (!event || !event.message) return res.sendStatus(200);
 
-  // 1. KENDİ MESAJINI ENGELLE
+  // 1. KENDİ MESAJINI YOKSAY (is_echo)
   if (event.message.is_echo) return res.sendStatus(200);
 
-  // 2. ÇİFT MESAJ ENGELLE
+  // 2. ÇİFT MESAJ ENGELLEME
   const messageId = event.message.mid;
   if (messageId && processedMessages.has(messageId)) return res.sendStatus(200);
   if (messageId) {
@@ -93,21 +117,17 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
   }
 
-  // ===== SİPARİŞ BAŞLATMA (GÜNCELLENDİ: AKILLI KONTROL) =====
-  // Eğer kullanıcı "sipariş" kelimesini kullandıysa hemen atlama!
-  // Önce niyeti kontrol et: Soru mu soruyor, yoksa almak mı istiyor?
+  // ===== SİPARİŞ BAŞLATMA (NİYET ANALİZİ İLE) =====
   if (text.includes('sipariş') && user.step === 'bos') {
       
+      // Önce niyeti kontrol et: Soru mu, Sipariş mi?
       const intent = await analyzeOrderIntent(message);
-      
-      // Eğer müşteri sadece soru soruyorsa (Örn: "Siparişim nerede?", "Sipariş verdim ama...")
-      // Bu bloğa girme, aşağıya normal sohbete düşsün.
+
       if (intent === 'SORU') {
+          // Soruysa hiçbir şey yapma, aşağıda normal sohbet cevaplasın.
           console.log("Sipariş kelimesi geçti ama bu bir soru.");
-          // Aşağıdaki normal sohbet akışına devam etsin diye bir şey yapmıyoruz.
-      } 
-      else {
-          // Gerçekten sipariş vermek istiyor
+      } else {
+          // Yeni sipariş ise başlat
           user.step = 'paket';
           await sendMessage(
             userId,
@@ -137,7 +157,7 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
                         '4 Kavanoz Set – 1600 TL';
       }
 
-      // Manuel Paket Seçimi (Rakamla)
+      // Manuel Paket Seçimi
       if (user.step === 'paket' && ['1', '2', '3'].includes(text)) {
            user.paket = text === '1' ? '1 Kavanoz – 699 TL' :
                         text === '2' ? '2 Kavanoz Set – 1000 TL' :
@@ -148,7 +168,6 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
       if (!user.paket) {
           user.step = 'paket';
           if (!extracted.paket && user.step === 'paket') {
-              // Eğer müşteri paket aşamasında alakasız soru sorarsa cevapla
               const aiResponse = await analyzePackageIntent(message);
               if (aiResponse.reply && !aiResponse.reply.includes('[ONAY]')) {
                   await sendMessage(userId, aiResponse.reply);
@@ -223,12 +242,10 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
   }
 
   // ===== NORMAL SOHBET =====
-  // Müşteri "Siparişim geldi sprey nedir?" derse buraya düşecek.
   if (user.step === 'bos') {
-    // Destek kelimeleri varsa Support modunda cevapla
-    const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','sprey','jel','geldi','aldım','sorun','nedir'];
+    // Soru soran müşteri buraya düşer.
+    const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','şikayet','sprey','jel','geldi','soru','bilgi','nedir','merhaba','slm'];
     const isSupport = supportKeywords.some(k => text.includes(k));
-    
     const reply = await askGPT(message, isSupport ? SUPPORT_PROMPT : SALES_PROMPT);
     await sendMessage(userId, reply);
   }
@@ -237,15 +254,15 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
 });
 
 // =======================
-// 🧠 YENİ: SİPARİŞ NİYET ANALİZİ (ÇÖZÜM BU)
+// NİYET ANALİZİ
 // =======================
 async function analyzeOrderIntent(userMessage) {
     const PROMPT = `
-GÖREV: Kullanıcının mesajını analiz et.
+GÖREV: Mesajı analiz et.
 MESAJ: "${userMessage}"
 
-1. Kullanıcı YENİ BİR SİPARİŞ VERMEK istiyorsa (Örn: "Sipariş vericem", "1 kavanoz alıcam", "sipariş oluştur"): [YENI_SIPARIS] döndür.
-2. Kullanıcı VAR OLAN SİPARİŞİ hakkında konuşuyorsa, soru soruyorsa veya şikayet ediyorsa (Örn: "Siparişim geldi", "Siparişim nerede", "Siparişin içinden sprey çıktı"): [SORU] döndür.
+1. Kullanıcı YENİ SİPARİŞ VERMEK istiyorsa (Örn: "Sipariş vericem", "1 kavanoz alıcam", "sipariş oluştur"): [YENI_SIPARIS]
+2. Kullanıcı VAR OLAN siparişi hakkında konuşuyor veya SORU soruyorsa (Örn: "Siparişim geldi", "Siparişin içinden sprey çıktı"): [SORU]
 
 Sadece kodu döndür: [YENI_SIPARIS] veya [SORU]
 `;
@@ -262,14 +279,14 @@ Sadece kodu döndür: [YENI_SIPARIS] veya [SORU]
 }
 
 // =======================
-// DİĞER YARDIMCI FONKSİYONLAR
+// YARDIMCI FONKSİYONLAR
 // =======================
 async function extractOrderDetails(userMessage) {
     const PROMPT = `
-GÖREV: Mesajdan sipariş bilgilerini JSON olarak çıkar.
+GÖREV: Mesajdan sipariş bilgilerini JSON çıkar.
 MESAJ: "${userMessage}"
-ÇIKTI FORMATI: {"isim": "...", "telefon": "...", "adres": "...", "paket": "..."}
-Paket: Miktar belirtilmişse 1, 2 veya 3.
+ÇIKTI: {"isim": "...", "telefon": "...", "adres": "...", "paket": "..."}
+Paket: 1, 2 veya 3.
 `;
     try {
         const r = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -330,4 +347,6 @@ async function sendToSheet(order) {
     catch (e) { console.error(e); }
 }
 
-app.listen(process.env.PORT || 3000, () => { console.log('Bot çalışıyor 🚀'); });
+app.listen(process.env.PORT || 3000, () => {
+  console.log('Bot çalışıyor 🚀');
+});
