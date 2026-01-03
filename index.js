@@ -322,14 +322,15 @@ async function detectUserIntent(message) {
     const PROMPT = `
     GÖREVİN: Gelen mesajın "NİYETİNİ" (INTENT) analiz et ve sadece aşağıdaki etiketlerden birini döndür.
     
-    1. [SATIS]: Kullanıcı ürün almak istiyor, fiyat soruyor veya sipariş vermek istiyor. (Örn: "Almak istiyorum", "Fiyat ne", "Sipariş vercem", "2 tane yolla", "Kapıda ödeme var mı", "Kavanoz")
-    2. [DESTEK]: Kullanıcı zaten almış, kargosu gelmemiş, ürün bozuk veya bir şikayeti var. (Örn: "Sipariş verdim gelmedi", "Kargom nerede", "Ürün kırık", "İade etmek istiyorum", "Dolandırıcı mısınız", "Numara ver", "Ulaşmadı")
-    3. [SOHBET]: Selamlaşma veya boş sohbet. (Örn: "Selam", "Naber", "Merhaba", "Orda mısın")
-    4. [DIGER]: Anlamsız veya konu dışı.
+    1. [SATIS]: Kullanıcı ürün almak istiyor, fiyat soruyor veya sipariş vermek istiyor.
+    2. [DESTEK]: Kullanıcı zaten almış, kargosu gelmemiş, şikayeti var.
+    3. [SOHBET]: Selamlaşma (Merhaba, selam, naber).
+    4. [TESEKKUR]: Sohbeti bitirme veya teşekkür etme. (Örn: "Sağol", "Teşekkürler", "Tamamdır", "Eyvallah", "Kolay gelsin", "Tmm", "Allah razı olsun")
+    5. [DIGER]: Anlamsız veya konu dışı.
 
     MESAJ: "${message}"
     
-    SADECE TEK KELİME CEVAP VER: SATIS veya DESTEK veya SOHBET veya DIGER
+    SADECE TEK KELİME CEVAP VER: SATIS, DESTEK, SOHBET, TESEKKUR veya DIGER
     `;
 
     try {
@@ -343,7 +344,8 @@ async function detectUserIntent(message) {
         if (content.includes('SATIS')) return 'SATIS';
         if (content.includes('DESTEK')) return 'DESTEK';
         if (content.includes('SOHBET')) return 'SOHBET';
-        return 'SATIS'; // Emin olamazsan satış varsay
+        if (content.includes('TESEKKUR')) return 'TESEKKUR'; // 🔥 Yeni Eklendi
+        return 'SATIS'; 
     } catch (e) { return 'SATIS'; }
 }
 
