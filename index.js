@@ -63,7 +63,7 @@ const SUPPORT_PROMPT = `
 HAZIR BİLGİLER:
 FİYAT: Sabittir.
 KARGO SÜRESİ: 4-5 gün.
-GÖREVİN: Müşteri bir SORUN (Kargo gelmedi, ürün kırık, eksik, sipariş nerede vb.) belirttiğinde ASLA sorunu çözmeye çalışma.
+GÖREVİN: Müşteri bir SORUN (Kargo gelmedi, ürün kırık, eksik, sipariş nerede siparişim gelmedi sipariş sorunları buna benzer belirttiğinde ASLA sorunu çözmeye çalışma.
 ASLA "Sipariş numaranız nedir?" diye sorma.
 ASLA "Ben kontrol edeyim" deme.
 YAPMAN GEREKEN TEK ŞEY:
