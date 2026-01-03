@@ -9,6 +9,8 @@ app.use(bodyParser.json());
 // =======================
 // 🧠 KULLANICI HAFIZASI
 // =======================
+// Kullanıcıların geçmiş siparişlerini de tutacak yapı
+// users[userId] = { step: '...', history: { onceSiparisVerdi: false, sonAldigiPaket: '' } }
 const users = {};
 const processedMessages = new Set(); // Çift mesaj önleyici hafıza
 
@@ -282,11 +284,33 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
       return res.sendStatus(200);
   }
 
-  // ===== NORMAL SOHBET =====
+// ===== NORMAL SOHBET =====
   if (user.step === 'bos') {
     const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','şikayet','dolandırıcı','sahtekar','pahalı','yalan','iletişim'];
     const isSupport = supportKeywords.some(k => text.includes(k));
-    const reply = await askGPT(message, isSupport ? SUPPORT_PROMPT : SALES_PROMPT);
+
+    // 🔥 MÜŞTERİ HAFIZA KONTROLÜ BAŞLANGICI
+    let customerContext = "";
+    
+    // Eğer kullanıcının geçmişi varsa (history) ve daha önce sipariş verdiyse
+    if (user.history && user.history.onceSiparisVerdi) {
+        customerContext = `
+        DİKKAT - MÜŞTERİ BİLGİSİ:
+        Bu kullanıcı senin ESKİ MÜŞTERİN. Seni tanıyor.
+        Daha önce satın aldığı ürün: ${user.history.sonAldigiPaket}.
+        Ona "Tekrar hoş geldiniz", "Memnun kaldınız mı?" gibi sadık müşteri cümleleri kur.
+        Asla kendini ilk defa tanıtıyormuş gibi konuşma.
+        `;
+    } else {
+        // Eğer geçmişi yoksa yeni müşteridir
+        customerContext = "DURUM: Bu YENİ bir potansiyel müşteri.";
+    }
+    
+    // Yapay zekaya gidecek son mesajı hazırlıyoruz (Prompt + Hafıza)
+    const finalPrompt = (isSupport ? SUPPORT_PROMPT : SALES_PROMPT) + "\n" + customerContext;
+    // 🔥 MÜŞTERİ HAFIZA KONTROLÜ BİTİŞİ
+
+    const reply = await askGPT(message, finalPrompt);
     await sendMessage(userId, reply);
   }
   
