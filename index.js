@@ -134,14 +134,22 @@ app.post('/webhook', async (req, res) => {
   }
 
   // ===== SİPARİŞ BAŞLATMA =====
-  const orderIntentKeywords = [
-  'sipariş vermek istiyorum',
-  'satın almak istiyorum',
-  'sipariş oluştur',
-  'sipariş ver',
-  'almak istiyorum'
+const orderIntentKeywords = [
+  'sipariş',         // "sipariş vermek", "siparişim var", "sipariş geç" hepsini yakalar
+  'satın al',        // "satın almak", "satın alacam" yakalar
+  'almak isti',      // "almak istiyorum", "almak istiyoruz" yakalar
+  'alcam',           // VİDEODAKİ SORUNU ÇÖZER: "2 kavanoz alcam"
+  'alabilirim',      // "nasıl alabilirim"
+  'gönder',          // "bana gönder", "hemen gönderin", "gönderirmisiniz"
+  'yolla',           // "adres atsam yollarmısınız", "yolla gelsin"
+  'kapıda öde',      // "kapıda ödemeli olsun"
+  'kavanoz',      // "kapıda ödemeli olsun"
+  'oluştur',      // "kapıda ödemeli olsun"
+  'fiyat nedir',     // Bazen fiyat sorup almak isterler, bunu eklemek satış stratejisidir (İstersen çıkarabilirsin)
+  'kavanoz istiyorum',
+  'denemek isti'     // "denemek istiyorum"
 ];
-
+const urunMiktarKontrol = /(\d+|bir|iki|üç|dört|beş)\s*(kavanoz|adet|tane|paket)/i.test(text);
 if (
   orderIntentKeywords.some(k => text.includes(k)) &&
   user.step === 'bos'
