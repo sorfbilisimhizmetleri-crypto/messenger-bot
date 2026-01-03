@@ -150,34 +150,40 @@ app.post('/webhook', async (req, res) => {
   }
 
   // ===== SİPARİŞ BAŞLATMA =====
-const orderIntentKeywords = [
-  'sipariş',         // "sipariş vermek", "siparişim var", "sipariş geç" hepsini yakalar
-  'satın al',        // "satın almak", "satın alacam" yakalar
-  'almak isti',      // "almak istiyorum", "almak istiyoruz" yakalar
-  'alcam',           // VİDEODAKİ SORUNU ÇÖZER: "2 kavanoz alcam"
-  'alabilirim',      // "nasıl alabilirim"
-  'gönder',          // "bana gönder", "hemen gönderin", "gönderirmisiniz"
-  'yolla',           // "adres atsam yollarmısınız", "yolla gelsin"
-  'kapıda öde',      // "kapıda ödemeli olsun"
-  'kavanoz',      // "kapıda ödemeli olsun"
-  'oluştur',      // "kapıda ödemeli olsun"
-  'fiyat nedir',     // Bazen fiyat sorup almak isterler, bunu eklemek satış stratejisidir (İstersen çıkarabilirsin)
-  'kavanoz istiyorum',
-  'denemek isti'     // "denemek istiyorum"
+// ===== SİPARİŞ BAŞLATMA =====
+  const orderIntentKeywords = [
+  'sipariş', 'satın al', 'almak isti', 'alcam', 
+  'alabilirim', 'gönder', 'yolla', 'kapıda öde', 
+  'kavanoz istiyorum', 'denemek isti'
 ];
-const urunMiktarKontrol = /(\d+|bir|iki|üç|dört|beş)\s*(kavanoz|adet|tane|paket)/i.test(text);
+
+// 🔥 YENİ EKLENEN KISIM: ENGEL LİSTESİ (BU KELİMELER VARSA SİPARİŞ AÇMA)
+const ignoreKeywords = [
+  'numara', 'telefon', 'iletişim', // İletişim istiyorsa paket sunma
+  'nerede', 'gelmedi', 'ulaşmadı', // Kargo soruyorsa paket sunma
+  'verdik', 'verdim', 'vermiştim', // "Sipariş verdim" diyorsa zaten almıştır
+  'iptal', 'vazgeçtim', 'istemiyorum',
+  'sorun', 'bozuk', 'eksik', 'kırık' // Şikayet ediyorsa paket sunma
+];
+
+// Kullanıcı bu yasaklı kelimelerden birini kullanmış mı?
+const isComplaintOrQuestion = ignoreKeywords.some(k => text.includes(k));
+
 if (
   orderIntentKeywords.some(k => text.includes(k)) &&
+  !isComplaintOrQuestion && // 🔥 Eğer şikayet/soru kelimesi YOKSA siparişi başlat
   user.step === 'bos'
 ) {
     user.step = 'paket';
     await sendMessage(
       userId,
-      `Hangi paketi istiyorsunuz?
+      `Hangi paketi istiyorsunuz? 
 
-1️⃣ 1 Kavanoz –600 GRAM - 699 TL
-2️⃣ 2 Kavanoz -600 GRAM + Krem + Damla- HEDİYELİ – 1000 TL
-3️⃣ 4 Kavanoz -600 GRAM + Krem + Damla –HEDİYELİ - 1600 TL
+1️⃣ 1 Kavanoz –600 GRAM MAVİ YENGEC MACUNU - 699 TL
+
+2️⃣ 2 Kavanoz -600 GRAM MAVİ YENGEC MACUNU - 1000 TL + YANINDA + Krem + Damla- HEDİYELİ –
+
+3️⃣ 4 Kavanoz -600 GRAM MAVİ YENGEC MACUNU - 1600 TL + YANINDA + Krem + Damla –HEDİYELİ -
 
 Lütfen paketi seçiniz (1, 2 veya 3)`
     );
