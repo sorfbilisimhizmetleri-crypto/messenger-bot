@@ -9,13 +9,11 @@ app.use(bodyParser.json());
 // =======================
 // 🧠 KULLANICI HAFIZASI
 // =======================
-// Kullanıcıların geçmiş siparişlerini de tutacak yapı
-// users[userId] = { step: '...', history: { onceSiparisVerdi: false, sonAldigiPaket: '' } }
 const users = {};
-const processedMessages = new Set(); // Çift mesaj önleyici hafıza
+const processedMessages = new Set(); 
 
 // =======================
-// 🟢 BİLGİ BANKASI
+// 🟢 BİLGİ BANKASI (PROMPTLAR)
 // =======================
 const SALES_PROMPT = `
 Sen MAVİ YENGEÇ MACUNU satan profesyonel bir satış danışmanısın.
@@ -36,9 +34,7 @@ Sadece kullanıcı sana "Merhaba" derse selam ver.
 Sürekli selamlaşan bir robot gibi görünme, samimi ve akıcı ol.
 
 Konuşurken güler yüzlü ol.
-Cümlelerin sonunda veya uygun yerlerde
-1–2 adet sade emoji kullan.
-profesyonel ve samimi kal.
+Cümlelerin sonunda veya uygun yerlerde 1–2 adet sade emoji kullan.
 Tercih edilen emojiler: 😊 👍 📦 ✅ 📞
 
 ÜRÜN:
@@ -60,36 +56,44 @@ PTT İLE KAPIDA SADECE NAKİT ÖDEMESİ YAPILIR KREDİ KARTI İLE ÖDEME YOK
 `;
 
 const SUPPORT_PROMPT = `
-HAZIR BİLGİLER:
-FİYAT: Sabittir.
-KARGO SÜRESİ: 4-5 gün.
-GÖREVİN: Müşteri bir SORUN (Kargo gelmedi, ürün kırık, eksik, sipariş nerede siparişim gelmedi sipariş sorunları buna benzer belirttiğinde ASLA sorunu çözmeye çalışma.
-ASLA "Sipariş numaranız nedir?" diye sorma.
-ASLA "Ben kontrol edeyim" deme.
-YAPMAN GEREKEN TEK ŞEY:
-Müşteriyi nazikçe sakinleştir ve hemen WHATSAPP DESTEK HATTINA yönlendir.
-KULLANIM: İlişkiden 30-40 dk önce 1 tatlı kaşığı.
-İLETİŞİM: +90 546 921 55 88
-KENDİ TELEFON NUMARAN ve whatsapp numaran VAR ve SORULDUĞUNDA MUTLAKA PAYLAŞIRSIN.
-TELEFON NUMARASI: +90 546 921 55 88
-WHATSAPP NUMARASI: +90 546 921 55 88
+SEN BİR MÜŞTERİ DESTEK ASİSTANISIN.
+AŞAĞIDAKİ İKİ DURUMA GÖRE FARKLI HAREKET ETMEK ZORUNDASIN.
 
-ÖNEMLİ KONUŞMA KURALI:
-Her cevabına "Merhaba" diyerek BAŞLAMA.
-Kullanıcı bir soru sorduğunda direkt cevabı yapıştır.
-Sadece ilk mesajda veya o sana selam verirse selamlaş.
-Sohbeti bölme, akıcı ol.
+⚠️ DURUM 1: EĞER MÜŞTERİ BİR SORUN, ŞİKAYET VEYA KARGO GECİKMESİ BELİRTİYORSA:
+(Örnekler: "Kargom gelmedi", "Sipariş nerede", "Ürün kırık", "Eksik çıktı", "Ulaşmadı", "Dolandırıcı mısınız", "Cevap verin")
 
-Müşteriyle empati kur.
-hakaret ve uygunsuz kelimeler ederse onu nazikce uyar ve sohbeti sonlandır 
-Nazik ve sakin bir dil kullan.
-Uygun yerlerde 1–2 adet emoji ekle.
-Sorun yaşayan müşteriler için
-anlayış gösteren emojiler kullan: 🙏 😔 ✅
+HAREKET PLANI:
+1. ASLA "Ben kontrol edeyim" deme.
+2. ASLA "Sipariş numaranız nedir" diye sorma.
+3. ASLA "Kargo süresi 4-5 gündür" gibi bilgi verme.
+4. YAPMAN GEREKEN TEK ŞEY: Nazikçe özür dile ve hemen WHATSAPP DESTEK HATTINA yönlendir.
+
+ÖRNEK CEVAP (ŞİKAYET İÇİN):
+"Yaşadığınız gecikme/sorun için çok üzgünüz 🙏 Kargo ve teslimat sorunlarıyla ilgili destek ekibimiz WhatsApp üzerinden anlık işlem yapmaktadır. Beklemeden çözüm almak için lütfen hemen yazınız:
+📞 WhatsApp: +90 546 921 55 88"
+
+---------------------------------------------------
+
+✅ DURUM 2: EĞER MÜŞTERİ SADECE BİLGİ SORMUŞSA (SORUN YOKSA):
+(Örnekler: "Nasıl kullanılır?", "Fiyat nedir?", "Yan etkisi var mı?", "Ne işe yarar?", "Kargo ne zaman gelir")
+
+HAREKET PLANI:
+Aşağıdaki bilgileri kullanarak net cevap ver:
+- FİYAT: Sabittir.
+- KARGO SÜRESİ: "Sipariş verirseniz 4-5 günde gelir" (Sadece yeni sipariş sorana söyle).
+- KULLANIM: İlişkiden 30-40 dk önce 1 tatlı kaşığı.
+- ÜRÜN BİLGİSİ: Erkeklere özel macun.
+- İLETİŞİM: +90 546 921 55 88
+
+GENEL KONUŞMA KURALLARI:
+- Her lafa "Merhaba" diyerek başlama. Direkt cevabı ver.
+- Müşteriyle senli benli olma ama samimi ol.
 `;
 
 const FULL_KNOWLEDGE = SALES_PROMPT + "\n" + SUPPORT_PROMPT;
 
+// =======================
+// ROUTE AYARLARI
 // =======================
 app.get('/', (req, res) => {
   res.send('BOT ÇALIŞIYOR 🚀');
@@ -107,36 +111,28 @@ app.get('/webhook', (req, res) => {
 });
 
 // =======================
-// MESAJ ALMA
+// 📩 MESAJ ALMA VE İŞLEME (ANA BEYİN)
 // =======================
 app.post('/webhook', async (req, res) => {
   const event = req.body.entry?.[0]?.messaging?.[0];
   
-  // 1. Olay yoksa veya mesaj metni yoksa çık
   if (!event || !event.message) return res.sendStatus(200);
 
-  // 🛑 2. KRİTİK KORUMA: KENDİ MESAJINI YOKSAY (is_echo)
-  // Bu satır olmazsa bot kendi kendine konuşur ve sürekli sipariş girer!
-  if (event.message.is_echo) {
-      return res.sendStatus(200);
-  }
+  // Kendi mesajını yoksay
+  if (event.message.is_echo) return res.sendStatus(200);
 
-  // 🛑 3. KORUMA: ÇİFT MESAJ ENGELLEME (Facebook Retry)
+  // Çift mesaj engelleme
   const messageId = event.message.mid;
-  if (messageId && processedMessages.has(messageId)) {
-      return res.sendStatus(200); 
-  }
+  if (messageId && processedMessages.has(messageId)) return res.sendStatus(200);
   if (messageId) {
       processedMessages.add(messageId);
-      if (processedMessages.size > 1000) { // Hafıza temizliği
+      if (processedMessages.size > 1000) { 
           const iterator = processedMessages.values();
           for(let i=0; i<500; i++) processedMessages.delete(iterator.next().value);
       }
   }
 
   const userId = event.sender.id;
-  
-  // Sadece metin mesajlarını işleyelim (Resim vs. gelirse patlamasın)
   const message = event.message.text;
   if (!message) return res.sendStatus(200);
   
@@ -149,45 +145,65 @@ app.post('/webhook', async (req, res) => {
 
   // ===== İPTAL / RESET =====
   if (['iptal', 'başa dön', 'reset'].includes(text)) {
-      users[userId] = { step: 'bos' };
-      await sendMessage(userId, "Sipariş işlemi iptal edildi. Nasıl yardımcı olabilirim?");
+      const history = user.history || {}; // Hafızayı koru
+      users[userId] = { step: 'bos', history: history };
+      await sendMessage(userId, "İşlem iptal edildi. Nasıl yardımcı olabilirim?");
       return res.sendStatus(200);
   }
 
- 
-// 🔥 YENİ EKLENEN AKILLI BEYİN FONKSİYONU
-async function detectUserIntent(message) {
-    const PROMPT = `
-    GÖREVİN: Gelen mesajın "NİYETİNİ" (INTENT) analiz et ve sadece aşağıdaki etiketlerden birini döndür.
-    
-    1. [SATIS]: Kullanıcı ürün almak istiyor, fiyat soruyor veya sipariş vermek istiyor. (Örn: "Almak istiyorum", "Fiyat ne", "Sipariş vercem", "2 tane yolla", "Kapıda ödeme var mı")
-    2. [DESTEK]: Kullanıcı zaten almış, kargosu gelmemiş, ürün bozuk veya bir şikayeti var. (Örn: "Sipariş verdim gelmedi", "Kargom nerede", "Ürün kırık", "İade etmek istiyorum", "Dolandırıcı mısınız", "Numara ver")
-    3. [SOHBET]: Selamlaşma veya boş sohbet. (Örn: "Selam", "Naber", "Merhaba")
-    4. [DIGER]: Anlamsız veya konu dışı.
+  // ==========================================
+  // AKILLI KARAR MEKANİZMASI (SİPARİŞ + SOHBET + DESTEK)
+  // ==========================================
+  if (user.step === 'bos') {
+      
+      // 1. Önce Yapay Zekaya "Bu adam ne istiyor?" diye soruyoruz
+      const niyet = await detectUserIntent(text);
+      console.log(`Kullanıcı Niyeti: ${niyet}`);
 
-    MESAJ: "${message}"
-    
-    SADECE TEK KELİME CEVAP VER: [SATIS] veya [DESTEK] veya [SOHBET] veya [DIGER]
-    `;
+      // --- SENARYO A: SATIŞ / SİPARİŞ İSTİYOR ---
+      if (niyet === 'SATIS') {
+          // Eğer adam net sipariş cümlesi kurduysa (örn: "2 tane yolla", "alcam")
+          const netSiparis = ['alcam', 'istiyorum', 'sipariş', 'yolla', 'gönder', 'kavanoz', 'fiyat', 'alabilirim', 'kapıda öde'].some(k => text.includes(k));
+          
+          if (netSiparis) {
+               user.step = 'paket';
+               await sendMessage(userId, `Hangi paketi istiyorsunuz?\n\n1️⃣ 1 Kavanoz – 699 TL\n2️⃣ 2 Kavanoz + Hediye – 1000 TL\n3️⃣ 4 Kavanoz + Hediye – 1600 TL\n\nLütfen paketi seçiniz (1, 2 veya 3)`);
+               return res.sendStatus(200);
+          } else {
+              // Sadece bilgi sormuştur -> SALES_PROMPT cevaplasın
+              const reply = await askGPT(message, SALES_PROMPT);
+              await sendMessage(userId, reply);
+              return res.sendStatus(200);
+          }
+      }
 
-    try {
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-            model: 'gpt-4o-mini', 
-            temperature: 0,
-            messages: [{ role: 'system', content: PROMPT }]
-        }, { headers: { Authorization: `Bearer ${process.env.OPENAI_KEY}` } });
-        
-        const content = response.data.choices[0].message.content;
-        
-        // Temizlik yap (köşeli parantezleri vs kaldır)
-        if (content.includes('SATIS')) return 'SATIS';
-        if (content.includes('DESTEK')) return 'DESTEK';
-        if (content.includes('SOHBET')) return 'SOHBET';
-        return 'DIGER';
-    } catch (e) { return 'SATIS'; } // Hata olursa varsayılan satış olsun
-}
+      // --- SENARYO B: SORUNU VAR / DESTEK İSTİYOR ---
+      if (niyet === 'DESTEK') {
+          // Direkt WhatsApp'a yönlendiren prompt devreye girsin
+          const reply = await askGPT(message, SUPPORT_PROMPT);
+          await sendMessage(userId, reply);
+          return res.sendStatus(200);
+      }
 
-  // 🔥🔥🔥 AKILLI VERİ YÖNETİCİSİ 🔥🔥🔥
+      // --- SENARYO C: SOHBET ---
+      if (niyet === 'SOHBET') {
+          await sendMessage(userId, "Merhaba! 😊 Mavi Yengeç Macunu hakkında size nasıl yardımcı olabilirim?");
+          return res.sendStatus(200);
+      }
+      
+      // --- DİĞER: HAFIZA KONTROLLÜ CEVAP ---
+      let customerContext = "";
+      if (user.history && user.history.onceSiparisVerdi) {
+          customerContext = `(HATIRLATMA: Bu kullanıcı ESKİ MÜŞTERİN. Daha önce aldığı ürün: ${user.history.sonAldigiPaket}. Ona göre samimi konuş.)`;
+      }
+      
+      const reply = await askGPT(message, SALES_PROMPT + "\n" + customerContext);
+      await sendMessage(userId, reply);
+  }
+
+  // ==========================================
+  // 📝 SİPARİŞ BİLGİLERİNİ TOPLAMA ADIMLARI
+  // ==========================================
   if (['paket', 'isim', 'telefon', 'adres'].includes(user.step)) {
       
       const extracted = await extractOrderDetails(message);
@@ -263,12 +279,17 @@ async function detectUserIntent(message) {
   }
 
   // ==========================================
-  // SONUÇ: SİPARİŞ TAMAMLANDI
+  // ✅ SONUÇ: SİPARİŞ TAMAMLANDI
   // ==========================================
   if (user.step === 'bitti_onay') {
       
       if (user.paket && user.isim && user.telefon && user.adres) {
           sendToSheet(user); 
+
+          // 🔥 MÜŞTERİYİ HAFIZAYA KAYDET
+          if (!user.history) user.history = {};
+          user.history.onceSiparisVerdi = true;
+          user.history.sonAldigiPaket = user.paket;
 
           await sendMessage(
             userId,
@@ -282,78 +303,11 @@ async function detectUserIntent(message) {
 🚚 Ücretsiz kargo ile en kısa sürede gönderilecektir.`
           );
           
-          users[userId] = { step: 'bos' }; 
+          // Step'i sıfırla ama hafızayı koru
+          const gecmisBilgi = user.history;
+          users[userId] = { step: 'bos', history: gecmisBilgi }; 
       }
       return res.sendStatus(200);
-  }
-
-// ✅ BURAYA YAPIŞTIR (Eski 'Normal Sohbet'in yerine) ✅
-
-  // ===== AKILLI KARAR MEKANİZMASI (SİPARİŞ + SOHBET + DESTEK) =====
-  if (user.step === 'bos') {
-      
-      // 1. Önce Yapay Zekaya "Bu adam ne istiyor?" diye soruyoruz
-      const niyet = await detectUserIntent(text);
-      
-      // --- SENARYO A: SATIŞ / SİPARİŞ İSTİYOR ---
-      if (niyet === 'SATIS') {
-          // Eğer adam net sipariş cümlesi kurduysa (örn: "2 tane yolla")
-          const netSiparis = ['alcam', 'istiyorum', 'sipariş', 'yolla', 'gönder', 'kavanoz', 'fiyat'].some(k => text.includes(k));
-          
-          if (netSiparis) {
-               user.step = 'paket';
-               await sendMessage(userId, `Hangi paketi istiyorsunuz?\n\n1️⃣ 1 Kavanoz – 699 TL\n2️⃣ 2 Kavanoz + Hediye – 1000 TL\n3️⃣ 4 Kavanoz + Hediye – 1600 TL\n\nSeçiminiz (1, 2 veya 3)?`);
-               return res.sendStatus(200);
-          } else {
-              // Fiyat sormuştur veya bilgi istemiştir -> SALES_PROMPT cevaplasın
-              const reply = await askGPT(message, SALES_PROMPT);
-              await sendMessage(userId, reply);
-              return res.sendStatus(200);
-          }
-      }
-
-      // --- SENARYO B: SORUNU VAR / DESTEK İSTİYOR ---
-      if (niyet === 'DESTEK') {
-          // Direkt WhatsApp'a yönlendiren prompt devreye girsin
-          const reply = await askGPT(message, SUPPORT_PROMPT);
-          await sendMessage(userId, reply);
-          return res.sendStatus(200);
-      }
-
-      // --- SENARYO C: SADECE SOHBET ---
-      if (niyet === 'SOHBET') {
-          await sendMessage(userId, "Merhaba! 😊 Size Mavi Yengeç Macunu hakkında nasıl yardımcı olabilirim?");
-          return res.sendStatus(200);
-      }
-      
-      // Algılanamayan diğer durumlar için genel cevap
-      const reply = await askGPT(message, SALES_PROMPT);
-      await sendMessage(userId, reply);
-  }
-
-    // 🔥 MÜŞTERİ HAFIZA KONTROLÜ BAŞLANGICI
-    let customerContext = "";
-    
-    // Eğer kullanıcının geçmişi varsa (history) ve daha önce sipariş verdiyse
-    if (user.history && user.history.onceSiparisVerdi) {
-        customerContext = `
-        DİKKAT - MÜŞTERİ BİLGİSİ:
-        Bu kullanıcı senin ESKİ MÜŞTERİN. Seni tanıyor.
-        Daha önce satın aldığı ürün: ${user.history.sonAldigiPaket}.
-        Ona "Tekrar hoş geldiniz", "Memnun kaldınız mı?" gibi sadık müşteri cümleleri kur.
-        Asla kendini ilk defa tanıtıyormuş gibi konuşma.
-        `;
-    } else {
-        // Eğer geçmişi yoksa yeni müşteridir
-        customerContext = "DURUM: Bu YENİ bir potansiyel müşteri.";
-    }
-    
-    // Yapay zekaya gidecek son mesajı hazırlıyoruz (Prompt + Hafıza)
-    const finalPrompt = (isSupport ? SUPPORT_PROMPT : SALES_PROMPT) + "\n" + customerContext;
-    // 🔥 MÜŞTERİ HAFIZA KONTROLÜ BİTİŞİ
-
-    const reply = await askGPT(message, finalPrompt);
-    await sendMessage(userId, reply);
   }
   
   res.sendStatus(200);
@@ -362,6 +316,36 @@ async function detectUserIntent(message) {
 // =======================
 // YARDIMCI FONKSİYONLAR
 // =======================
+
+// 🔥 YENİ EKLENEN AKILLI BEYİN
+async function detectUserIntent(message) {
+    const PROMPT = `
+    GÖREVİN: Gelen mesajın "NİYETİNİ" (INTENT) analiz et ve sadece aşağıdaki etiketlerden birini döndür.
+    
+    1. [SATIS]: Kullanıcı ürün almak istiyor, fiyat soruyor veya sipariş vermek istiyor. (Örn: "Almak istiyorum", "Fiyat ne", "Sipariş vercem", "2 tane yolla", "Kapıda ödeme var mı", "Kavanoz")
+    2. [DESTEK]: Kullanıcı zaten almış, kargosu gelmemiş, ürün bozuk veya bir şikayeti var. (Örn: "Sipariş verdim gelmedi", "Kargom nerede", "Ürün kırık", "İade etmek istiyorum", "Dolandırıcı mısınız", "Numara ver", "Ulaşmadı")
+    3. [SOHBET]: Selamlaşma veya boş sohbet. (Örn: "Selam", "Naber", "Merhaba", "Orda mısın")
+    4. [DIGER]: Anlamsız veya konu dışı.
+
+    MESAJ: "${message}"
+    
+    SADECE TEK KELİME CEVAP VER: SATIS veya DESTEK veya SOHBET veya DIGER
+    `;
+
+    try {
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-4o-mini', 
+            temperature: 0,
+            messages: [{ role: 'system', content: PROMPT }]
+        }, { headers: { Authorization: `Bearer ${process.env.OPENAI_KEY}` } });
+        
+        let content = response.data.choices[0].message.content.toUpperCase();
+        if (content.includes('SATIS')) return 'SATIS';
+        if (content.includes('DESTEK')) return 'DESTEK';
+        if (content.includes('SOHBET')) return 'SOHBET';
+        return 'SATIS'; // Emin olamazsan satış varsay
+    } catch (e) { return 'SATIS'; }
+}
 
 async function extractOrderDetails(userMessage) {
     const PROMPT = `
