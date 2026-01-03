@@ -154,46 +154,38 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
   }
 
-  // ===== SİPARİŞ BAŞLATMA =====
-// ===== SİPARİŞ BAŞLATMA =====
-  const orderIntentKeywords = [
-  'sipariş', 'satın al', 'almak isti', 'alcam', 
-  'alabilirim', 'gönder', 'yolla', 'kapıda öde', 
-  'kavanoz istiyorum', 'denemek isti'
-];
+ 
+// 🔥 YENİ EKLENEN AKILLI BEYİN FONKSİYONU
+async function detectUserIntent(message) {
+    const PROMPT = `
+    GÖREVİN: Gelen mesajın "NİYETİNİ" (INTENT) analiz et ve sadece aşağıdaki etiketlerden birini döndür.
+    
+    1. [SATIS]: Kullanıcı ürün almak istiyor, fiyat soruyor veya sipariş vermek istiyor. (Örn: "Almak istiyorum", "Fiyat ne", "Sipariş vercem", "2 tane yolla", "Kapıda ödeme var mı")
+    2. [DESTEK]: Kullanıcı zaten almış, kargosu gelmemiş, ürün bozuk veya bir şikayeti var. (Örn: "Sipariş verdim gelmedi", "Kargom nerede", "Ürün kırık", "İade etmek istiyorum", "Dolandırıcı mısınız", "Numara ver")
+    3. [SOHBET]: Selamlaşma veya boş sohbet. (Örn: "Selam", "Naber", "Merhaba")
+    4. [DIGER]: Anlamsız veya konu dışı.
 
-// 🔥 YENİ EKLENEN KISIM: ENGEL LİSTESİ (BU KELİMELER VARSA SİPARİŞ AÇMA)
-const ignoreKeywords = [
-  'numara', 'telefon', 'iletişim', // İletişim istiyorsa paket sunma
-  'nerede', 'gelmedi', 'ulaşmadı', // Kargo soruyorsa paket sunma
-  'verdik', 'verdim', 'vermiştim', // "Sipariş verdim" diyorsa zaten almıştır
-  'iptal', 'vazgeçtim', 'istemiyorum',
-  'sorun', 'bozuk', 'eksik', 'kırık' // Şikayet ediyorsa paket sunma
-];
+    MESAJ: "${message}"
+    
+    SADECE TEK KELİME CEVAP VER: [SATIS] veya [DESTEK] veya [SOHBET] veya [DIGER]
+    `;
 
-// Kullanıcı bu yasaklı kelimelerden birini kullanmış mı?
-const isComplaintOrQuestion = ignoreKeywords.some(k => text.includes(k));
-
-if (
-  orderIntentKeywords.some(k => text.includes(k)) &&
-  !isComplaintOrQuestion && // 🔥 Eğer şikayet/soru kelimesi YOKSA siparişi başlat
-  user.step === 'bos'
-) {
-    user.step = 'paket';
-    await sendMessage(
-      userId,
-      `Hangi paketi istiyorsunuz? 
-
-1️⃣ 1 Kavanoz –600 GRAM MAVİ YENGEC MACUNU - 699 TL
-
-2️⃣ 2 Kavanoz -600 GRAM MAVİ YENGEC MACUNU - 1000 TL + YANINDA + Krem + Damla- HEDİYELİ –
-
-3️⃣ 4 Kavanoz -600 GRAM MAVİ YENGEC MACUNU - 1600 TL + YANINDA + Krem + Damla –HEDİYELİ -
-
-Lütfen paketi seçiniz (1, 2 veya 3)`
-    );
-    return res.sendStatus(200);
-  }
+    try {
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-4o-mini', 
+            temperature: 0,
+            messages: [{ role: 'system', content: PROMPT }]
+        }, { headers: { Authorization: `Bearer ${process.env.OPENAI_KEY}` } });
+        
+        const content = response.data.choices[0].message.content;
+        
+        // Temizlik yap (köşeli parantezleri vs kaldır)
+        if (content.includes('SATIS')) return 'SATIS';
+        if (content.includes('DESTEK')) return 'DESTEK';
+        if (content.includes('SOHBET')) return 'SOHBET';
+        return 'DIGER';
+    } catch (e) { return 'SATIS'; } // Hata olursa varsayılan satış olsun
+}
 
   // 🔥🔥🔥 AKILLI VERİ YÖNETİCİSİ 🔥🔥🔥
   if (['paket', 'isim', 'telefon', 'adres'].includes(user.step)) {
@@ -295,10 +287,49 @@ Lütfen paketi seçiniz (1, 2 veya 3)`
       return res.sendStatus(200);
   }
 
-// ===== NORMAL SOHBET =====
+// ✅ BURAYA YAPIŞTIR (Eski 'Normal Sohbet'in yerine) ✅
+
+  // ===== AKILLI KARAR MEKANİZMASI (SİPARİŞ + SOHBET + DESTEK) =====
   if (user.step === 'bos') {
-    const supportKeywords = ['kırık','bozuk','eksik','kargo','iade','şikayet','dolandırıcı','sahtekar','pahalı','yalan','iletişim'];
-    const isSupport = supportKeywords.some(k => text.includes(k));
+      
+      // 1. Önce Yapay Zekaya "Bu adam ne istiyor?" diye soruyoruz
+      const niyet = await detectUserIntent(text);
+      
+      // --- SENARYO A: SATIŞ / SİPARİŞ İSTİYOR ---
+      if (niyet === 'SATIS') {
+          // Eğer adam net sipariş cümlesi kurduysa (örn: "2 tane yolla")
+          const netSiparis = ['alcam', 'istiyorum', 'sipariş', 'yolla', 'gönder', 'kavanoz', 'fiyat'].some(k => text.includes(k));
+          
+          if (netSiparis) {
+               user.step = 'paket';
+               await sendMessage(userId, `Hangi paketi istiyorsunuz?\n\n1️⃣ 1 Kavanoz – 699 TL\n2️⃣ 2 Kavanoz + Hediye – 1000 TL\n3️⃣ 4 Kavanoz + Hediye – 1600 TL\n\nSeçiminiz (1, 2 veya 3)?`);
+               return res.sendStatus(200);
+          } else {
+              // Fiyat sormuştur veya bilgi istemiştir -> SALES_PROMPT cevaplasın
+              const reply = await askGPT(message, SALES_PROMPT);
+              await sendMessage(userId, reply);
+              return res.sendStatus(200);
+          }
+      }
+
+      // --- SENARYO B: SORUNU VAR / DESTEK İSTİYOR ---
+      if (niyet === 'DESTEK') {
+          // Direkt WhatsApp'a yönlendiren prompt devreye girsin
+          const reply = await askGPT(message, SUPPORT_PROMPT);
+          await sendMessage(userId, reply);
+          return res.sendStatus(200);
+      }
+
+      // --- SENARYO C: SADECE SOHBET ---
+      if (niyet === 'SOHBET') {
+          await sendMessage(userId, "Merhaba! 😊 Size Mavi Yengeç Macunu hakkında nasıl yardımcı olabilirim?");
+          return res.sendStatus(200);
+      }
+      
+      // Algılanamayan diğer durumlar için genel cevap
+      const reply = await askGPT(message, SALES_PROMPT);
+      await sendMessage(userId, reply);
+  }
 
     // 🔥 MÜŞTERİ HAFIZA KONTROLÜ BAŞLANGICI
     let customerContext = "";
